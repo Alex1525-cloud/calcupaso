@@ -96,6 +96,8 @@
     const c = capa.toUpperCase();
     if (/PLACA|MURO|PL[-_ ]|WALL|PLACAS/.test(c)) return "placas";
     if (/COL/.test(c)) return "columnas";
+    // capas tipo "S-CONCRETO" (columnas y vigas juntas): solo los rectángulos cerrados salen como columnas
+    if (/CONCRETO|(^|[^A-Z])CONC([^A-Z]|$)|ESTRUC/.test(c) && !/FINO|ZAP|CIM|LOSA|ACHUR|HATCH|TEXTO|COTA|OCULT/.test(c)) return "columnas";
     if (/EJE|GRID|AXIS|AXES/.test(c)) return "ejes";
     if (/VIG|BEAM/.test(c)) return "vigas";
     return "ignorar";
@@ -105,6 +107,32 @@
     const xs = d.ent.flatMap(e => e.pts.map(p => p[0])), ys = d.ent.flatMap(e => e.pts.map(p => p[1]));
     const L = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
     return L > 3000 ? 0.001 : L > 300 ? 0.01 : 1;
+  }
+
+  /* Escala sugerida. Muchos planos están dibujados "en la lámina" (p. ej. en mm a escala 1:50): se mira el
+     tamaño de las columnas (rectángulos cerrados en capas de columnas) y se elige la escala 1:f que da
+     columnas de tamaño usual y en medidas redondas (múltiplos de 5 cm). Devuelve {u: m por unidad, f}. */
+  const ESCALAS = [1, 20, 25, 50, 75, 100, 125, 200];
+  function escalaSugerida(d, roles) {
+    const u = escalaUnidades(d.unidades) || escalaProbable(d);
+    const lados = [];
+    for (const e of d.ent) {
+      if (roles[e.capa] !== "columnas" || e.tipo !== "poli" || e.pts.length < 4) continue;
+      const cerr = e.cerrada || Pl.dist(e.pts[0], e.pts[e.pts.length - 1]) < 1e-9; if (!cerr) continue;
+      const r = rectangulo(e.pts), a = Math.min(r.a, r.b), b = Math.max(r.a, r.b);
+      if (a > 0 && b / a < 2.5) lados.push(a, b);
+    }
+    if (!lados.length) return { u, f: 1 };
+    lados.sort((x, y) => x - y);
+    const s = lados[Math.floor(lados.length / 2)];
+    let mejor = { f: 1, p: Infinity };
+    for (const f of ESCALAS) {
+      const m = s * u * f, cm = m * 100;
+      if (m < 0.15 || m > 1.5) continue;
+      const pen = Math.abs(Math.log(m / 0.3)) + (Math.abs(cm / 5 - Math.round(cm / 5)) < 0.02 ? 0 : 0.5) + (f === 1 ? 0 : 0.05);
+      if (pen < mejor.p) mejor = { f, p: pen };
+    }
+    return { u, f: mejor.f };
   }
 
   // Rectángulo (posiblemente girado) de una polilínea cerrada: centro, lados y ángulo
@@ -205,6 +233,6 @@
     return L.join("\n");
   }
 
-  root.DXF = { leer, importar, rolSugerido, escalaUnidades, escalaProbable, ejemplo };
+  root.DXF = { leer, importar, rolSugerido, escalaUnidades, escalaProbable, escalaSugerida, ESCALAS, ejemplo };
   if (typeof module !== "undefined") module.exports = root.DXF;
 })(typeof window !== "undefined" ? window : globalThis);

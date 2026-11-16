@@ -162,30 +162,74 @@
   let dxfLeido = null;
   $("btnDxf").addEventListener("click", () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); });
   $("btnDxfCancelar").addEventListener("click", () => $("dlgDxf").close());
-  $("fileDxf").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) prepararDxf(await f.text(), f.name); e.target.value = ""; });
+  let cargaDwg = null;
+  function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
+    if (window.DWGLector) return Promise.resolve(window.DWGLector);
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    return cargaDwg;
+  }
+  $("fileDxf").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const buf = await f.arrayBuffer(), cab = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(6, buf.byteLength)));
+    if (/^AC1\d\d\d/.test(cab)) {
+      $("dxfInfo").innerHTML = `<p>Leyendo el DWG ${f.name}…</p>`;
+      try {
+        const L = await lectorDwg();
+        await new Promise(r => setTimeout(r, 30));
+        const d = L.leer(buf);
+        prepararDxf(d, f.name + (d.version ? ` (formato ${d.version})` : ""));
+      } catch (err) { console.error(err); $("dxfInfo").innerHTML = `<div class="msg bad">No pude leer este DWG: puede estar dañado o usar algo que el lector aún no soporta. En AutoCAD usa <b>Guardar como → DXF</b> y súbelo así.</div>`; $("btnDxfImportar").disabled = true; }
+    } else prepararDxf(new TextDecoder().decode(buf), f.name);
+  });
   $("btnDxfEjemplo").addEventListener("click", () => prepararDxf(DXF.ejemplo(), "ejemplo.dxf"));
-  function prepararDxf(txt, nombre) {
+  function prepararDxf(entrada, nombre) {
     try {
-      if (/^AC10\d\d/.test(txt.slice(0, 6))) throw new Error("Ese archivo es un DWG. En AutoCAD usa Guardar como → DXF.");
-      const d = DXF.leer(txt);
-      if (!d.ent.length) throw new Error("No encontré líneas ni polilíneas en el archivo.");
+      const d = typeof entrada === "string" ? DXF.leer(entrada) : entrada;
+      if (!d.ent.length) throw new Error("No encontré líneas, polilíneas ni bloques en el espacio modelo del archivo.");
       dxfLeido = d;
-      const esc = DXF.escalaUnidades(d.unidades) || DXF.escalaProbable(d);
+      const rolesIni = {}; for (const c in d.capas) rolesIni[c] = DXF.rolSugerido(c);
+      const esc = DXF.escalaSugerida(d, rolesIni);
       const filas = Object.entries(d.capas).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<tr><td>${c.replace(/</g, "&lt;")}</td><td>${n}</td><td><select data-capa="${encodeURIComponent(c)}">
         ${[["columnas", "Columnas"], ["placas", "Placas"], ["ejes", "Ejes"], ["vigas", "Vigas (eje de la viga)"], ["ignorar", "Ignorar"]].map(([v, t]) => `<option value="${v}" ${DXF.rolSugerido(c) === v ? "selected" : ""}>${t}</option>`).join("")}</select></td></tr>`).join("");
       $("dxfInfo").innerHTML = `<p><b>${nombre}</b>: ${d.ent.length} entidades en ${Object.keys(d.capas).length} capas.</p>
-        <label>Unidades del dibujo <select id="dxfEsc">${[[1, "metros"], [0.01, "centímetros"], [0.001, "milímetros"]].map(([v, t]) => `<option value="${v}" ${v === esc ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap"><label>Unidades del dibujo <select id="dxfEsc">${[[1, "metros"], [0.01, "centímetros"], [0.001, "milímetros"]].map(([v, t]) => `<option value="${v}" ${v === esc.u ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <label>Escala del dibujo <select id="dxfFac">${DXF.ESCALAS.map(f => `<option value="${f}" ${f === esc.f ? "selected" : ""}>${f === 1 ? "1:1 (tamaño real)" : "1:" + f}</option>`).join("")}</select></label></div>
+        <div id="dxfResumen" class="msg"></div>
         <div class="scroll"><table class="wrap"><thead><tr><th>Capa</th><th>Objetos</th><th>Qué es</th></tr></thead><tbody>${filas}</tbody></table></div>
         <label class="check"><input id="dxfVigas" type="checkbox" checked> Crear vigas sobre los ejes, de columna a columna (${st.secc.viga[0]} × ${st.secc.viga[1]} m)</label>
         <label class="check"><input id="dxfLosas" type="checkbox" checked> Crear losas en los paños cerrados</label>
         <p class="hint">Las columnas se leen de polilíneas cerradas (rectángulos, también girados) o bloques; las placas, de rectángulos delgados. Revisa el resultado en la planta: puedes corregir todo con el editor.</p>`;
+      $("dxfInfo").querySelectorAll("select, input").forEach(x => x.addEventListener("change", resumenDxf));
+      resumenDxf();
       $("btnDxfImportar").disabled = false;
     } catch (err) { $("dxfInfo").innerHTML = `<div class="msg bad">${err.message}</div>`; $("btnDxfImportar").disabled = true; }
   }
+  const rolesDxf = () => { const roles = {}; $("dxfInfo").querySelectorAll("select[data-capa]").forEach(s => { roles[decodeURIComponent(s.dataset.capa)] = s.value; }); return roles; };
+  const escalaDxf = () => +$("dxfEsc").value * +$("dxfFac").value;
+  // vista previa de lo que saldrá, para comprobar la escala antes de importar
+  function resumenDxf() {
+    const el = $("dxfResumen"); if (!el || !dxfLeido) return;
+    try {
+      const p = DXF.importar(dxfLeido, rolesDxf(), { escala: escalaDxf(), viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: false }).plano;
+      if (!p.columnas.length && !p.placas.length) { el.className = "msg bad"; el.innerHTML = "Con estas capas no sale ninguna columna ni placa: marca como <strong>Columnas</strong> la capa donde están dibujadas."; return; }
+      const cuenta = {}; p.columnas.forEach(c => { const k = `${f2(c.b)} × ${f2(c.h)}`; cuenta[k] = (cuenta[k] || 0) + 1; });
+      const tipica = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0][0];
+      // tamaño de la estructura (caras exteriores de columnas y placas; los ejes suelen salirse del edificio)
+      const xs = [], ys = [];
+      p.columnas.forEach(c => { const r = Math.max(c.b, c.h) / 2; xs.push(c.x - r, c.x + r); ys.push(c.y - r, c.y + r); });
+      p.placas.forEach(w => { xs.push(w.a[0], w.b[0]); ys.push(w.a[1], w.b[1]); });
+      const ax = Math.max(...xs) - Math.min(...xs), ay = Math.max(...ys) - Math.min(...ys);
+      const raro = p.columnas.length && (+tipica.split(" × ")[0] < 0.15 || +tipica.split(" × ")[0] > 1.5) || Math.max(ax, ay) > 200 || Math.max(ax, ay) < 2;
+      el.className = "msg " + (raro ? "bad" : "ok");
+      el.innerHTML = `Saldrán <strong>${p.columnas.length} columnas</strong>${p.columnas.length ? ` (la mayoría de ${tipica} m)` : ""}, ${p.placas.length} placas y ${p.vigas.length} vigas, en una planta de <strong>${f2(ax)} × ${f2(ay)} m</strong>.` +
+        (raro ? " Estas medidas no parecen reales: cambia las unidades o la escala del dibujo." : " Si las medidas no coinciden con tu plano, cambia la escala.");
+    } catch (e) { el.className = "msg bad"; el.textContent = e.message; }
+  }
+  const f2 = (v) => (+v).toFixed(2);
   $("btnDxfImportar").addEventListener("click", () => {
     if (!dxfLeido) return;
-    const roles = {}; $("dxfInfo").querySelectorAll("select[data-capa]").forEach(s => { roles[decodeURIComponent(s.dataset.capa)] = s.value; });
-    const r = DXF.importar(dxfLeido, roles, { escala: +$("dxfEsc").value, viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: $("dxfLosas").checked });
+    const roles = rolesDxf();
+    const r = DXF.importar(dxfLeido, roles, { escala: escalaDxf(), viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: $("dxfLosas").checked });
     if (!r.plano.columnas.length && !r.plano.placas.length) { $("dxfInfo").insertAdjacentHTML("afterbegin", `<div class="msg bad">No salió ninguna columna ni placa: revisa qué capa es de columnas.</div>`); return; }
     CAD.cambiar(p => Object.assign(p, r.plano));
     $("dlgDxf").close(); mostrarVista("planta"); CAD.zoomExtension();
