@@ -78,6 +78,7 @@
     guardarLocal(); pistas(); cambioModelo();
   }
   function pistas() {
+    if ($("pisoVista") && $("pisoVista").options.length !== st.pisos.n + 1) opcionesPiso();
     const q = E030.parametros({ norma: "2026", zona: st.zona, suelo: st.suelo, vs30: st.vs30, categoria: st.categoria, sistemaX: st.sistemaX, sistemaY: st.sistemaY });
     const u = Asistente.USOS[st.uso];
     let h = `Z = ${q.Z} · U = ${q.U} · S = ${q.S == null ? "—" : q.S.toFixed(2)} · Tp = ${q.Tp == null ? "—" : q.Tp.toFixed(2)} s · TL = ${q.TL == null ? "—" : q.TL.toFixed(2)} s · R0 = ${q.R0x} / ${q.R0y}`;
@@ -96,7 +97,7 @@
   function cambioModelo() { pistas(); revisar(); if (vistaActual === "3d") redibujar3D(); else necesita3D = true; marcarDesactualizado(); }
   let necesita3D = true;
   function revisar() {
-    const r = Plano.revisar(st.plano);
+    const r = Plano.revisar(st.plano, st.pisos.n);
     $("revision").innerHTML = r.err.map(t => `<div class="msg bad">${t}</div>`).join("") + r.av.map(t => `<div class="msg warn">${t}</div>`).join("");
     return r;
   }
@@ -109,7 +110,15 @@
     seleccion: mostrarSeleccion,
     aviso: (t) => { $("estado").textContent = t; },
     losasAuto: () => losasAuto(),
+    piso: () => +($("pisoVista").value || 0),
+    nPisos: () => st.pisos.n,
   });
+  function opcionesPiso() {
+    const sv = $("pisoVista"), v = +sv.value || 0;
+    sv.innerHTML = `<option value="0">Todos los pisos</option>` + Array.from({ length: st.pisos.n }, (_, i) => `<option value="${i + 1}">Piso ${i + 1}</option>`).join("");
+    sv.value = v <= st.pisos.n ? v : 0;
+  }
+  $("pisoVista").addEventListener("change", () => { CAD.limpiarSeleccion(); mostrarSeleccion([]); CAD.dibujar(); });
   document.querySelectorAll("#cadBar [data-h]").forEach(b => b.addEventListener("click", () => CAD.herramienta(b.dataset.h)));
   let ortoOn = false, imanOn = true;
   $("cadOrto").addEventListener("click", () => { ortoOn = !ortoOn; CAD.orto(ortoOn); $("cadOrto").classList.toggle("on", ortoOn); });
@@ -141,7 +150,8 @@
     const opsForma = Object.entries(Plano.FORMAS), opsLosa = Object.entries(Plano.TIPOS_LOSA).map(([kk, t]) => [kk, t.nombre]);
     const campos = { columnas: (els.length === 1 ? [["x", "X (m)"], ["y", "Y (m)"]] : []).concat([["forma", "Forma", opsForma], ["b", (o.forma === "circ" ? "D" : "b") + " (m)"], ["h", "h (m)"], ["t", "Ala t (m)"], ["ang", "Giro (°)"]]).filter(([c]) => !(c === "t" && !["L", "T"].includes(o.forma)) && !(c === "h" && o.forma === "circ")),
       vigas: [["bw", "b (m)"], ["h", "h (m)"]], placas: [["mat", "Material", [["conc", "Concreto armado"], ["alb", "Albañilería confinada"]]], ["t", "Espesor (m)"]].concat(o.mat === "alb" ? [["fm", "f'm (kg/cm²)"], ["vm", "v'm (kg/cm²)"]] : []), losas: [["tipo", "Tipo", opsLosa], ["h", "h (m)"]], ejes: [["nombre", "Nombre"]] }[k];
-    const valor = (c) => c === "mat" ? (o.mat || "conc") : c === "fm" ? (o.fm || 65) : c === "vm" ? (o.vm || 8.1) : c === "tipo" ? (o.tipo || st.losa.tipo) : c === "forma" ? (o.forma || "rect") : c === "h" && k === "losas" ? (o.h || (o.tipo && o.tipo !== st.losa.tipo ? "" : st.losa.h)) : c === "t" && k === "columnas" ? (o.t || 0.25) : (o[c] ?? "");
+    const valor = (c) => c === "p1" ? (o.pisos || [1, st.pisos.n])[0] : c === "p2" ? Math.min(st.pisos.n, (o.pisos || [1, st.pisos.n])[1]) : c === "mat" ? (o.mat || "conc") : c === "fm" ? (o.fm || 65) : c === "vm" ? (o.vm || 8.1) : c === "tipo" ? (o.tipo || st.losa.tipo) : c === "forma" ? (o.forma || "rect") : c === "h" && k === "losas" ? (o.h || (o.tipo && o.tipo !== st.losa.tipo ? "" : st.losa.h)) : c === "t" && k === "columnas" ? (o.t || 0.25) : (o[c] ?? "");
+    if (k !== "ejes") campos.push(["p1", "Desde piso"], ["p2", "Hasta piso"]);
     const nombre = { columnas: "Columna", vigas: "Viga", placas: "Placa", losas: "Losa", ejes: "Eje" }[k];
     let info = "";
     if (k === "columnas") info = `en (${o.x.toFixed(2)}, ${o.y.toFixed(2)})`;
@@ -149,11 +159,12 @@
     if (k === "losas") info = `A = ${Math.abs(Plano.areaPoly(o.pts)).toFixed(2)} m²`;
     box.innerHTML = `<div class="prop"><b>${nombre}${n}</b> <span class="hint">${els.length === 1 ? info : "se cambian todas"}</span>
       <div class="row3">${campos.map(([c, l, ops]) => ops ? `<label>${l}<select data-c="${c}">${ops.map(([v, t]) => `<option value="${v}" ${v === valor(c) ? "selected" : ""}>${t}</option>`).join("")}</select></label>`
-        : `<label>${l}<input data-c="${c}" type="${c === "nombre" ? "text" : "number"}" step="${k === "losas" ? 0.01 : 0.05}" value="${valor(c)}"></label>`).join("")}</div>
+        : `<label>${l}<input data-c="${c}" type="${c === "nombre" ? "text" : "number"}" step="${c === "p1" || c === "p2" ? 1 : k === "losas" ? 0.01 : 0.05}" value="${valor(c)}"></label>`).join("")}</div>
       ${k === "losas" ? `<p class="hint">Peso propio ≈ ${Plano.pesoLosa(o.tipo || st.losa.tipo, o.h || st.losa.h)} kg/m². Escalera: el paño queda como hueco con el peso de la escalera y su CV; Vacío: sin losa ni carga.</p>` : ""}
       <div class="btns"><button class="small" id="propBorrar">Borrar</button></div></div>`;
     box.querySelectorAll("input, select").forEach(inp => inp.addEventListener("change", () => {
       const c = inp.dataset.c, v = ["nombre", "forma", "tipo", "mat"].includes(c) ? inp.value : parseFloat(inp.value);
+      if (c === "p1" || c === "p2") { const n = st.pisos.n, vv = Math.max(1, Math.min(n, Math.round(v))); if (!isFinite(vv)) return; CAD.cambiar(p => ids.forEach(id => { for (const kk of ["columnas", "vigas", "placas", "losas"]) { const e = p[kk].find(x => x.id === id); if (e) { const r = (e.pisos || [1, n]).slice(); r[c === "p1" ? 0 : 1] = vv; if (r[0] > r[1]) r[c === "p1" ? 1 : 0] = vv; if (r[0] === 1 && r[1] >= n) delete e.pisos; else e.pisos = r; } } })); mostrarSeleccion(ids); return; }
       if (c === "mat") { CAD.cambiar(p => ids.forEach(id => { const e = p.placas.find(x => x.id === id); if (e) { if (v === "alb") Object.assign(e, { mat: "alb", fm: e.fm || st.secc.fm || 65, vm: e.vm || st.secc.vm || 8.1 }); else { delete e.mat; delete e.fm; delete e.vm; } } })); mostrarSeleccion(ids); return; }
       if (c === "fm" || c === "vm") { if (v > 0) CAD.cambiar(p => ids.forEach(id => { const e = p.placas.find(x => x.id === id); if (e) e[c] = v; })); return; }
       if (c === "forma" || c === "tipo") { CAD.cambiar(p => ids.forEach(id => { for (const kk of ["columnas", "losas"]) { const e = p[kk].find(x => x.id === id); if (e) { e[c] = v; if (c === "forma" && v === "circ") e.h = e.b; if (c === "tipo") delete e.h; } } })); mostrarSeleccion(ids); return; }
@@ -196,7 +207,7 @@
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
     if (window.DWGLector) return Promise.resolve(window.DWGLector);
-    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116i"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116j"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
   $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });

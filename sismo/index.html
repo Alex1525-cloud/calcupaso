@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116i">
+<link rel="stylesheet" href="src/app.css?v=20261116j">
 </head>
 <body>
 <header class="top">
@@ -181,6 +181,7 @@
     </div>
     <div class="cad-wrap" id="cadWrap">
       <div class="cad-bar" id="cadBar">
+        <select id="pisoVista" title="Piso que se edita (como los niveles de Revit). En «Todos los pisos», lo que dibujes va en todos."><option value="0">Todos los pisos</option></select>
         <button data-h="sel" class="on" title="Seleccionar (S)">↖ Sel</button>
         <button data-h="col" title="Columna (C)">▪ Columna</button>
         <button data-h="viga" title="Viga (V)">━ Viga</button>
@@ -265,6 +266,7 @@
       <li><b>Piso débil y sistemas no paralelos:</b> la resistencia al corte de cada entrepiso se estima con acero mínimo (columnas 1%, placas 0,25%), comparando con el piso de arriba (80% y 65%). Los ejes a 30° o más de X e Y que toman más del 10% del cortante marcan sistemas no paralelos.</li>
       <li><b>Albañilería confinada (E.070):</b> los muros se modelan como placas con Em = 500 f'm y Gm = 0,4 Em. Se revisa el espesor, el esfuerzo axial, la fisuración con el sismo moderado y la resistencia global (Σ Vm ≥ V del sismo severo). El límite de deriva es 0,005.</li>
       <li><b>Interacción suelo-estructura (opcional):</b> cada columna o placa se apoya en resortes con las rigideces de Gazetas para su zapata (tamaño por cargas de gravedad y qadm). El suelo usa G = 0,5·ρ·Vs², con el Vs30 del paso 1 o un valor típico del perfil.</li>
+      <li><b>Plantas distintas por piso:</b> en la planta eliges el piso que editas (como los niveles de Revit). Lo que dibujas va solo en ese piso, y borrar quita el elemento solo de ese piso. En el panel de propiedades cada elemento tiene «desde piso» y «hasta piso». Así se modelan retranqueos, columnas que nacen arriba y azoteas parciales.</li>
       <li><b>Diseño:</b> vigas (flexión y corte por capacidad), columnas (diagrama de interacción por fibras, biaxial), placas (núcleos, acero repartido, corte amplificado) y zapatas por capacidad portante, punzonamiento y corte.</li>
     </ul>
   </details>
@@ -273,7 +275,6 @@
     <ul>
       <li>Placas con elemento lámina (shell). Hoy se usa la columna ancha, con la diferencia de ~3% indicada arriba.</li>
       <li>Diafragma flexible o con aberturas grandes. Se asume diafragma rígido en todos los pisos.</li>
-      <li>Plantas distintas por piso: todos los pisos usan la misma planta.</li>
     </ul>
   </details>
 
@@ -298,20 +299,20 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116i"></script>
-<script src="lib/OrbitControls.js?v=20261116i"></script>
-<script src="src/solver.js?v=20261116i"></script>
-<script src="src/e030.js?v=20261116i"></script>
-<script src="src/irreg.js?v=20261116i"></script>
-<script src="src/plano.js?v=20261116i"></script>
-<script src="src/dxf.js?v=20261116i"></script>
-<script src="src/cad.js?v=20261116i"></script>
-<script src="src/asistente.js?v=20261116i"></script>
-<script src="src/rediseno.js?v=20261116i"></script>
-<script src="src/fuerzas.js?v=20261116i"></script>
-<script src="src/diseno.js?v=20261116i"></script>
-<script src="src/ise.js?v=20261116i"></script>
-<script src="src/visor.js?v=20261116i"></script>
-<script src="src/app.js?v=20261116i"></script>
+<script src="lib/three.min.js?v=20261116j"></script>
+<script src="lib/OrbitControls.js?v=20261116j"></script>
+<script src="src/solver.js?v=20261116j"></script>
+<script src="src/e030.js?v=20261116j"></script>
+<script src="src/irreg.js?v=20261116j"></script>
+<script src="src/plano.js?v=20261116j"></script>
+<script src="src/dxf.js?v=20261116j"></script>
+<script src="src/cad.js?v=20261116j"></script>
+<script src="src/asistente.js?v=20261116j"></script>
+<script src="src/rediseno.js?v=20261116j"></script>
+<script src="src/fuerzas.js?v=20261116j"></script>
+<script src="src/diseno.js?v=20261116j"></script>
+<script src="src/ise.js?v=20261116j"></script>
+<script src="src/visor.js?v=20261116j"></script>
+<script src="src/app.js?v=20261116j"></script>
 </body>
 </html>
