@@ -30,6 +30,10 @@
         for (const [c, v] of d) { if (c === 10) x = parseFloat(v); else if (c === 20 && x != null) { pts.push([x, parseFloat(v)]); x = null; } }
         lista.push({ tipo: "poli", capa, pts, cerrada: (num(d, 70) & 1) === 1 });
       } else if (e.tipo === "CIRCLE") lista.push({ tipo: "circulo", capa, pts: [[num(d, 10), num(d, 20)]], r: num(d, 40) });
+      else if (e.tipo === "TEXT" || e.tipo === "MTEXT") {
+        const txt = (str(d, 1) + d.filter(p => p[0] === 3).map(p => p[1]).join("")).trim();
+        if (txt) lista.push({ tipo: "texto", capa, pts: [[num(d, 10), num(d, 20)]], txt });
+      }
       else if (e.tipo === "INSERT") lista.push({ tipo: "insert", capa, bloque: str(d, 2), x: num(d, 10), y: num(d, 20), sx: num(d, 41, 1), sy: num(d, 42, 1), rot: num(d, 50) });
     }
     function seccion(nombre, destino) {
@@ -81,15 +85,16 @@
       const out = [];
       for (const o of b.lista) {
         if (o.tipo === "insert") { expandir(o, prof + 1).forEach(q => out.push(Object.assign(q, { capa: q.capa === "0" ? e.capa : q.capa }))); continue; }
-        out.push({ tipo: o.tipo, capa: o.capa === "0" ? e.capa : o.capa, pts: o.pts.map(T), cerrada: o.cerrada, r: o.r ? o.r * Math.abs(e.sx) : undefined });
+        out.push({ tipo: o.tipo, capa: o.capa === "0" ? e.capa : o.capa, pts: o.pts.map(T), cerrada: o.cerrada, r: o.r ? o.r * Math.abs(e.sx) : undefined, txt: o.txt });
       }
       return out;
     };
     const todas = [];
     for (const e of ent) { if (e.tipo === "insert") todas.push(...expandir(e, 0)); else todas.push(e); }
-    const capas = {};
-    todas.forEach(e => { capas[e.capa] = (capas[e.capa] || 0) + 1; });
-    return { unidades, capas, ent: todas };
+    const capas = {}, textos = [];
+    const graf = todas.filter(e => { if (e.tipo !== "texto") return true; textos.push(e); return false; });
+    graf.forEach(e => { capas[e.capa] = (capas[e.capa] || 0) + 1; });
+    return { unidades, capas, ent: graf, textos };
   }
 
   function rolSugerido(capa) {
@@ -109,22 +114,64 @@
     return L > 3000 ? 0.001 : L > 300 ? 0.01 : 1;
   }
 
+  /* Las láminas suelen traer, además de la planta, cortes y detalles a otra escala. Si hay ejes, solo se
+     toman columnas y placas dentro del recuadro de los ejes y pegadas a alguno de ellos. Devuelve una
+     función que dice si una entidad (en unidades del dibujo) pertenece a la planta. */
+  function filtroPlanta(d, roles) {
+    const ejes = [];
+    for (const e of d.ent) if (roles[e.capa] === "ejes" && e.tipo !== "circulo") for (let i = 0; i + 1 < e.pts.length; i++) { const g = [e.pts[i], e.pts[i + 1]]; g.ent = e; ejes.push(g); }
+    let f_caja = null;
+    if (!ejes.length) { const f = () => true; f.eje = () => true; f.caja = null; return f; }
+    // la malla de la planta: ejes que se cruzan con otro (un eje suelto suele ser de un detalle)
+    const malla = ejes.filter((e, i) => ejes.some((f, j) => j !== i && Pl.interseccion(e[0], e[1], f[0], f[1])));
+    if (malla.length >= 2) ejes.splice(0, ejes.length, ...malla);
+    const xs = ejes.flatMap(([a, b]) => [a[0], b[0]]), ys = ejes.flatMap(([a, b]) => [a[1], b[1]]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const usados = new Set(ejes.map(g => g.ent));
+    f_caja = { x0, x1, y0, y1 };
+    const f = (e) => {
+      if (e.tipo === "circulo") { const [cx, cy] = e.pts[0]; return cx >= x0 && cx <= x1 && cy >= y0 && cy <= y1 && ejes.some(([a, b]) => Pl.proyeccion([cx, cy], a, b).d <= 1.5 * e.r); }
+      const pxs = e.pts.map(p => p[0]), pys = e.pts.map(p => p[1]);
+      const ax0 = Math.min(...pxs), ax1 = Math.max(...pxs), ay0 = Math.min(...pys), ay1 = Math.max(...pys);
+      const c = [(ax0 + ax1) / 2, (ay0 + ay1) / 2], tam = Math.max(ax1 - ax0, ay1 - ay0);
+      if (c[0] < x0 || c[0] > x1 || c[1] < y0 || c[1] > y1) return false;
+      return ejes.some(([a, b]) => { const r = Pl.proyeccion(c, a, b); return r.d <= Math.max(tam / 2, Math.min(ax1 - ax0, ay1 - ay0)) && r.t > -0.02 && r.t < 1.02; });
+    };
+    f.eje = (e) => e.tipo === "circulo" || usados.has(e);
+    f.caja = f_caja;
+    return f;
+  }
+
+  // Texto de AutoCAD sin códigos de formato (MTEXT: \P, {\fArial|b1;...}, %%c)
+  const limpiar = (t) => String(t).replace(/\\P/g, " ").replace(/\\[A-Za-z][^;\\{}]*;/g, "").replace(/[{}]/g, "")
+    .replace(/%%[cC]/g, "Ø").replace(/%%[dD]/g, "°").replace(/\s+/g, " ").trim();
+  const RX_ESC = /ESC(?:ALA)?\.?\s*:?\s*1\s*[:\/]\s*(\d{1,4})\b/i;
+  const centroCaja = (c) => [(c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2];
+
   /* Escala sugerida. Muchos planos están dibujados "en la lámina" (p. ej. en mm a escala 1:50): se mira el
      tamaño de las columnas (rectángulos cerrados en capas de columnas) y se elige la escala 1:f que da
      columnas de tamaño usual y en medidas redondas (múltiplos de 5 cm). Devuelve {u: m por unidad, f}. */
   const ESCALAS = [1, 20, 25, 50, 75, 100, 125, 200];
   function escalaSugerida(d, roles) {
     const u = escalaUnidades(d.unidades) || escalaProbable(d);
-    const lados = [];
+    const lados = [], enPlanta = filtroPlanta(d, roles);
     for (const e of d.ent) {
-      if (roles[e.capa] !== "columnas" || e.tipo !== "poli" || e.pts.length < 4) continue;
+      if (roles[e.capa] !== "columnas" || e.tipo !== "poli" || e.pts.length < 4 || !enPlanta(e)) continue;
       const cerr = e.cerrada || Pl.dist(e.pts[0], e.pts[e.pts.length - 1]) < 1e-9; if (!cerr) continue;
       const r = rectangulo(e.pts), a = Math.min(r.a, r.b), b = Math.max(r.a, r.b);
       if (a > 0 && b / a < 2.5) lados.push(a, b);
     }
-    if (!lados.length) return { u, f: 1 };
     lados.sort((x, y) => x - y);
-    const s = lados[Math.floor(lados.length / 2)];
+    const s = lados.length ? lados[Math.floor(lados.length / 2)] : 0;
+    // 1) escala escrita en la lámina ("ESC. 1:50"), la más cercana a la planta, si da columnas razonables
+    const conEsc = (d.textos || []).map(t => ({ t, m: limpiar(t.txt).match(RX_ESC) })).filter(o => o.m);
+    if (conEsc.length) {
+      const c = enPlanta.caja ? centroCaja(enPlanta.caja) : null;
+      if (c) conEsc.sort((a, b) => Pl.dist(a.t.pts[0], c) - Pl.dist(b.t.pts[0], c));
+      const f = +conEsc[0].m[1], m = s * u * f;
+      if (f > 0 && (!s || (m >= 0.1 && m <= 2))) return { u, f, texto: limpiar(conEsc[0].t.txt) };
+    }
+    if (!lados.length) return { u, f: 1 };
     let mejor = { f: 1, p: Infinity };
     for (const f of ESCALAS) {
       const m = s * u * f, cm = m * 100;
@@ -150,8 +197,10 @@
 
   /* roles = {capa: "columnas"|"placas"|"ejes"|"vigas"|"ignorar"}; op = {escala, viga: [bw, h], vigasPorEjes, losas} */
   function importar(d, roles, op) {
-    const k = op.escala, p = Pl.vacio(), avisos = [];
-    const E = d.ent.filter(e => roles[e.capa] && roles[e.capa] !== "ignorar").map(e => Object.assign({}, e, { pts: e.pts.map(([x, y]) => [x * k, y * k]), r: e.r ? e.r * k : 0 }));
+    const k = op.escala, p = Pl.vacio(), avisos = [], enPlanta = filtroPlanta(d, roles);
+    let fuera = 0;
+    const E = d.ent.filter(e => roles[e.capa] && roles[e.capa] !== "ignorar")
+      .filter(e => { if (roles[e.capa] === "ejes") return enPlanta.eje(e); if (roles[e.capa] !== "columnas" && roles[e.capa] !== "placas") return true; if (enPlanta(e)) return true; if (e.tipo === "circulo" || e.cerrada || e.pts.length > 2) fuera++; return false; }).map(e => Object.assign({}, e, { pts: e.pts.map(([x, y]) => [x * k, y * k]), r: e.r ? e.r * k : 0 }));
     let aprox = 0;
     for (const e of E) {
       const rol = roles[e.capa];
@@ -188,6 +237,7 @@
         }
       }
     }
+    if (fuera) avisos.push(`Se dejaron de lado ${fuera} figura(s) fuera de los ejes (cortes o detalles de la lámina).`);
     if (aprox) avisos.push(`${aprox} columna(s) no rectangulares o circulares se tomaron con un rectángulo equivalente.`);
     // vigas por ejes: une columnas y extremos de placas consecutivos que están sobre cada eje
     if (op.vigasPorEjes && p.ejes.length) {
@@ -208,13 +258,68 @@
         }
       }
     }
+    // textos del plano: nombres de ejes, secciones de vigas ("V-101 (0.25x0.30)") y vacíos
+    const leidos = { ejes: 0, vigas: 0, vacios: 0 };
+    let TX = [];
+    if (op.textos !== false && d.textos && d.textos.length) {
+      const cj = enPlanta.caja, mg = cj ? 0.1 * Math.max(cj.x1 - cj.x0, cj.y1 - cj.y0) : 0;
+      TX = d.textos.filter(t => !cj || (t.pts[0][0] >= cj.x0 - mg && t.pts[0][0] <= cj.x1 + mg && t.pts[0][1] >= cj.y0 - mg && t.pts[0][1] <= cj.y1 + mg))
+        .map(t => ({ txt: limpiar(t.txt), p: [t.pts[0][0] * k, t.pts[0][1] * k] }));
+      // nombres de ejes: texto corto dentro de una burbuja (círculo de la capa de ejes) en la punta de un eje
+      const burbujas = E.filter(e => e.tipo === "circulo" && roles[e.capa] === "ejes");
+      for (const t of TX) {
+        if (!/^[A-Z0-9]{1,3}'?$/i.test(t.txt)) continue;
+        const b = burbujas.find(c => Pl.dist(c.pts[0], t.p) <= 1.2 * c.r); if (!b) continue;
+        let mejor = null, dm = 2.5 * b.r;
+        for (const e of p.ejes) for (const q of [e.a, e.b]) { const dd = Pl.dist(q, b.pts[0]); if (dd <= dm) { dm = dd; mejor = e; } }
+        if (mejor && !mejor.nombre) { mejor.nombre = t.txt.toUpperCase(); leidos.ejes++; }
+      }
+      // secciones de vigas: la etiqueta con medidas define el tipo; cada etiqueta se aplica a la viga más cercana
+      const RX_V = /^(V[\w.-]*)\s*(?:\(?\s*(\d+(?:[.,]\d+)?)\s*[xX×]\s*(\d+(?:[.,]\d+)?)\s*\)?)?/;
+      const tipos = {}, etiquetas = [];
+      for (const t of TX) {
+        const m = t.txt.match(RX_V); if (!m) continue;
+        if (m[2]) { let b = parseFloat(m[2].replace(",", ".")), h = parseFloat(m[3].replace(",", ".")); if (b > 5) { b /= 100; h /= 100; } if (b > 0.08 && b < 2 && h > 0.08 && h < 3) tipos[m[1]] = [b, h]; }
+        etiquetas.push({ nombre: m[1], p: t.p });
+      }
+      const hechas = new Set();
+      for (const et of etiquetas) {
+        const sec = tipos[et.nombre]; if (!sec) continue;
+        let mejor = null, dm = 0.6;
+        for (const v of p.vigas) { const r = Pl.proyeccion(et.p, v.a, v.b); if (r.t > -0.15 && r.t < 1.15 && r.d < dm) { dm = r.d; mejor = v; } }
+        if (mejor) { mejor.bw = sec[0]; mejor.h = sec[1]; mejor.nombre = et.nombre; if (!hechas.has(mejor)) { hechas.add(mejor); leidos.vigas++; } }
+      }
+      // un tramo sin etiqueta toma la sección del tramo vecino en línea (misma viga continua)
+      for (let vuelta = 0, cambio = hechas.size > 0; cambio && vuelta < 10; vuelta++) {
+        cambio = false;
+        for (const v of p.vigas) {
+          if (v.nombre) continue;
+          const u = [v.b[0] - v.a[0], v.b[1] - v.a[1]], L = Math.hypot(...u);
+          const vec = p.vigas.find(w => w.nombre && [w.a, w.b].some(q => Pl.dist(q, v.a) < 0.05 || Pl.dist(q, v.b) < 0.05) &&
+            Math.abs((u[0] * (w.b[1] - w.a[1]) - u[1] * (w.b[0] - w.a[0])) / (L * Pl.dist(w.a, w.b))) < 0.02);
+          if (vec) { v.bw = vec.bw; v.h = vec.h; v.nombre = vec.nombre; leidos.vigas++; cambio = true; }
+        }
+      }
+    }
     // llevar el dibujo cerca del origen
     const xs0 = p.columnas.map(c => c.x).concat(p.placas.flatMap(w => [w.a[0], w.b[0]])), ys0 = p.columnas.map(c => c.y).concat(p.placas.flatMap(w => [w.a[1], w.b[1]]));
     const ex = Pl.extension(p), ox = xs0.length ? Math.min(...xs0) : ex.x0, oy = ys0.length ? Math.min(...ys0) : ex.y0;
     const mover = (q) => [+(q[0] - ox).toFixed(4), +(q[1] - oy).toFixed(4)];
     p.columnas.forEach(c => { [c.x, c.y] = mover([c.x, c.y]); });
     [...p.vigas, ...p.placas, ...p.ejes].forEach(s => { s.a = mover(s.a); s.b = mover(s.b); });
-    if (op.losas) { const n = Pl.losasAutomaticas(p); if (!n) avisos.push("No se encontraron paños cerrados para las losas: revisa que las vigas formen recuadros."); }
+    TX.forEach(t => { t.p = mover(t.p); });
+    if (op.losas) {
+      const n = Pl.losasAutomaticas(p);
+      if (!n) avisos.push("No se encontraron paños cerrados para las losas: revisa que las vigas formen recuadros.");
+      // un paño con el texto VACÍO, DUCTO o TRAGALUZ se queda sin losa
+      const vac = TX.filter(t => /VAC[IÍ]O|DUCTO|TRAGALUZ|HUECO/i.test(t.txt));
+      if (vac.length) { const antes = p.losas.length; p.losas = p.losas.filter(l => !vac.some(t => Pl.dentro(t.p[0], t.p[1], l.pts))); leidos.vacios = antes - p.losas.length; }
+    }
+    const partes = [];
+    if (leidos.ejes) partes.push(`nombres de ${leidos.ejes} ejes`);
+    if (leidos.vigas) partes.push(`secciones de ${leidos.vigas} vigas (de sus etiquetas)`);
+    if (leidos.vacios) partes.push(`${leidos.vacios} vacío(s) sin losa`);
+    if (partes.length) avisos.unshift("Leído de los textos del plano: " + partes.join(", ") + ".");
     return { plano: p, avisos };
   }
 
@@ -233,6 +338,6 @@
     return L.join("\n");
   }
 
-  root.DXF = { leer, importar, rolSugerido, escalaUnidades, escalaProbable, escalaSugerida, ESCALAS, ejemplo };
+  root.DXF = { leer, importar, limpiar, rolSugerido, escalaUnidades, escalaProbable, escalaSugerida, ESCALAS, ejemplo };
   if (typeof module !== "undefined") module.exports = root.DXF;
 })(typeof window !== "undefined" ? window : globalThis);
