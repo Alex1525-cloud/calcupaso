@@ -1,64 +1,47 @@
-/* Interfaz de SismoPaso: datos -> modelo -> análisis -> resultados y asistente. */
+/* Interfaz de SismoPaso: planta tipo CAD -> modelo -> análisis -> resultados y asistente. */
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const LETRAS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const KEY = "sismopaso.proyecto.v1";
+  const KEY = "sismopaso.proyecto.v2";
 
   const EJEMPLO = {
     nombre: "Edificio de prueba 4 pisos (col. 60x60, vigas 30x60)", uso: "vivienda", zona: 4, suelo: "S2", vs30: null, categoria: "C",
-    sistemaX: "PÓRTICOS", sistemaY: "PÓRTICOS", dir30: false, norma: "2026",
-    ejesX: [5, 5, 5], ejesY: [5, 5, 5], pisos: { n: 4, h1: 3.2, h: 2.8 },
-    secc: { col: [0.6, 0.6], viga: [0.3, 0.6], placaT: 0.25 }, fc: 210,
-    cargas: { cm: 500, cmRoof: 400, cv: 200, cvRoof: 100 }, vacios: [], placas: [],
+    sistemaX: "PÓRTICOS", sistemaY: "PÓRTICOS", dir30: false,
+    pisos: { n: 4, h1: 3.2, h: 2.8 }, luces: { x: [5, 5, 5], y: [5, 5, 5] },
+    secc: { col: [0.6, 0.6], colAng: 0, viga: [0.3, 0.6], placaT: 0.25 }, fc: 210,
+    cargas: { cm: 500, cmRoof: 400, cv: 200, cvRoof: 100 }, plano: null,
   };
-  let st = clon(EJEMPLO), modo = "pano", ultimo = null;
+  const nuevoEjemplo = () => { const e = clon(EJEMPLO); e.plano = Plano.desdeEjes(e.luces.x, e.luces.y, e.secc); return e; };
+  let st = nuevoEjemplo(), ultimo = null, vistaActual = "planta";
 
   function clon(o) { return JSON.parse(JSON.stringify(o)); }
   function guardarLocal() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* sin almacenamiento */ } }
   function leerLocal() { try { const s = localStorage.getItem(KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+  function cargar(o) { // admite proyectos guardados con el formato anterior (grilla)
+    const s = Object.assign(clon(EJEMPLO), o);
+    if (!s.plano || !s.plano.columnas) s.plano = Plano.desdeEjes(o.ejesX || s.luces.x, o.ejesY || s.luces.y, s.secc);
+    if (o.ejesX) s.luces = { x: o.ejesX, y: o.ejesY };
+    return s;
+  }
 
   // ------------------------------------------------------------ modelo para el solver
-  function nombreNodo(i, j) { return (i < 26 ? LETRAS[i] : "A" + LETRAS[i - 26]) + (j + 1); }
-  function construirModelo(s) {
-    const xs = [0], ys = [0];
-    s.ejesX.forEach(l => xs.push(xs[xs.length - 1] + l)); s.ejesY.forEach(l => ys.push(ys[ys.length - 1] + l));
-    const n = s.pisos.n, vac = new Set(s.vacios);
-    const nodes = {}, columns = [], beams = [], slabs = [], walls = [];
-    const usados = new Set(), vb = new Set();
-    for (let i = 0; i < xs.length - 1; i++) for (let j = 0; j < ys.length - 1; j++) {
-      if (vac.has(i + "," + j)) continue;
-      const q = [[i, j], [i + 1, j], [i + 1, j + 1], [i, j + 1]].map(([a, b]) => { const id = nombreNodo(a, b); nodes[id] = [xs[a], ys[b]]; usados.add(id); return id; });
-      slabs.push({ nodes: q, p1: 1, p2: n });
-      for (const [a, b] of [[0, 1], [3, 2], [0, 3], [1, 2]]) { const k = [q[a], q[b]].sort().join(); if (!vb.has(k)) { vb.add(k); beams.push({ i: q[a], j: q[b], sec: "V", p1: 1, p2: n }); } }
-    }
-    for (const id of usados) columns.push({ node: id, sec: "C", p1: 1, p2: n });
-    for (const p of s.placas) {
-      const [t, i, j] = p.split(/[:,]/); const a = +i, b = +j;
-      const ni = nombreNodo(a, b), nj = t === "h" ? nombreNodo(a + 1, b) : nombreNodo(a, b + 1);
-      if (!nodes[ni] || !nodes[nj]) continue;
-      walls.push({ i: ni, j: nj, sec: "M", p1: 1, p2: n });
-    }
-    const stories = Array.from({ length: n }, (_, k) => ({ name: "Piso" + (k + 1), h: k ? s.pisos.h : s.pisos.h1 }));
-    const fmCV = (s.categoria === "C") ? 0.25 : 0.5;
-    return {
-      stories, E: 15000 * Math.sqrt(s.fc) * 10, nu: 0.2, gamma: 2.4, nodes,
-      sections: { C: { type: "col", b: s.secc.col[0], h: s.secc.col[1] }, V: { type: "beam", b: s.secc.viga[0], h: s.secc.viga[1] }, M: { type: "wall", b: s.secc.placaT } },
-      columns, beams, slabs, walls,
-      loads: { cm: s.cargas.cm / 1000, cmRoof: s.cargas.cmRoof / 1000, cv: s.cargas.cv / 1000, cvRoof: s.cargas.cvRoof / 1000 },
-      massFactors: { cm: 1, cv: fmCV, cvRoof: 0.25 },
-    };
-  }
+  const construirModelo = (s) => Plano.aModelo(s.plano, s.pisos, s.fc, s.cargas, s.categoria === "C").model;
   const cotas = (s) => { const z = [0]; for (let k = 0; k < s.pisos.n; k++) z.push(z[k] + (k ? s.pisos.h : s.pisos.h1)); return z; };
+  function colTipica() {
+    const cnt = {}; st.plano.columnas.forEach(c => { const k = c.b + "x" + c.h; cnt[k] = (cnt[k] || 0) + 1; });
+    const k = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a])[0];
+    return k ? k.split("x").map(Number) : st.secc.col;
+  }
 
   // ------------------------------------------------------------ formulario
-  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "ejesX", "ejesY", "nPisos", "h1", "h", "colB", "colH", "vigB", "vigH", "placaT", "fc", "cm", "cmRoof", "cv", "cvRoof"];
+  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "nPisos", "h1", "h", "colB", "colH", "colAng", "vigB", "vigH", "placaT", "fc", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
   function aForm() {
     $("nombre").value = st.nombre; $("uso").value = st.uso; $("zona").value = st.zona; $("suelo").value = st.suelo; $("vs30").value = st.vs30 ?? "";
     $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30;
-    $("ejesX").value = st.ejesX.join(", "); $("ejesY").value = st.ejesY.join(", ");
+    $("ejesX").value = st.luces.x.join(", "); $("ejesY").value = st.luces.y.join(", ");
     $("nPisos").value = st.pisos.n; $("h1").value = st.pisos.h1; $("h").value = st.pisos.h;
-    $("colB").value = st.secc.col[0]; $("colH").value = st.secc.col[1]; $("vigB").value = st.secc.viga[0]; $("vigH").value = st.secc.viga[1];
+    $("colB").value = st.secc.col[0]; $("colH").value = st.secc.col[1]; $("colAng").value = st.secc.colAng || 0;
+    $("vigB").value = st.secc.viga[0]; $("vigH").value = st.secc.viga[1];
     $("placaT").value = st.secc.placaT; $("fc").value = st.fc;
     $("cm").value = st.cargas.cm; $("cmRoof").value = st.cargas.cmRoof; $("cv").value = st.cargas.cv; $("cvRoof").value = st.cargas.cvRoof;
     pistas();
@@ -70,17 +53,15 @@
     st.nombre = $("nombre").value; st.uso = $("uso").value; st.zona = +$("zona").value; st.suelo = $("suelo").value;
     st.vs30 = $("vs30").value === "" ? null : num("vs30", null);
     st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked;
-    const ex = lista("ejesX", st.ejesX), ey = lista("ejesY", st.ejesY);
-    if (ex.length !== st.ejesX.length || ey.length !== st.ejesY.length) { st.vacios = []; st.placas = []; }
-    st.ejesX = ex; st.ejesY = ey;
+    st.luces = { x: lista("ejesX", st.luces.x), y: lista("ejesY", st.luces.y) };
     st.pisos = { n: Math.max(1, Math.min(30, Math.round(num("nPisos", 4)))), h1: num("h1", 3), h: num("h", 2.8) };
-    st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25) };
+    st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], colAng: num("colAng", 0), viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25) };
     st.fc = num("fc", 210);
     st.cargas = { cm: num("cm", 500), cmRoof: num("cmRoof", 400), cv: num("cv", 200), cvRoof: num("cvRoof", 100) };
     if (ev && ev.target && ev.target.id === "uso" && st.uso !== prevUso) { // el asistente llena CV y categoría según el uso
       const u = Asistente.USOS[st.uso]; st.cargas.cv = u.cv; st.categoria = u.cat; aForm();
     }
-    guardarLocal(); pistas(); dibujarPlanta(); redibujar3D(); marcarDesactualizado();
+    guardarLocal(); pistas(); cambioModelo();
   }
   function pistas() {
     const q = E030.parametros({ norma: "2026", zona: st.zona, suelo: st.suelo, vs30: st.vs30, categoria: st.categoria, sistemaX: st.sistemaX, sistemaY: st.sistemaY });
@@ -91,59 +72,130 @@
     if (st.categoria === "A1" && st.zona >= 3) h += "<br>La categoría A1 en zonas 3 y 4 requiere aislamiento sísmico.";
     $("hintProyecto").innerHTML = h;
     $("hintCargas").innerHTML = `${u.nota}<br>CM sugerida: losa aligerada (≈300 kg/m² para h = 0,20) + piso terminado 100 + tabiquería 100. Para el peso sísmico se toma 100% CM + ${st.categoria === "C" ? 25 : 50}% CV (25% en azotea), E.030 art. 31.`;
+    const p = st.plano;
+    $("hintPlano").innerHTML = `${p.columnas.length} columnas · ${p.vigas.length} vigas · ${p.placas.length} placas · ${p.losas.length} losas`;
   }
 
-  // ------------------------------------------------------------ planta interactiva (SVG)
-  function dibujarPlanta() {
-    const svg = $("planta");
-    const xs = [0], ys = [0];
-    st.ejesX.forEach(l => xs.push(xs[xs.length - 1] + l)); st.ejesY.forEach(l => ys.push(ys[ys.length - 1] + l));
-    const W = xs[xs.length - 1], H = ys[ys.length - 1], esc = 84 / Math.max(W, H), ox = 10 + (84 - W * esc) / 2, oy = 8 + (84 - H * esc) / 2;
-    const X = (x) => ox + x * esc, Y = (y) => oy + (H - y) * esc;
-    const vac = new Set(st.vacios), pl = new Set(st.placas);
-    let s = "";
-    for (let i = 0; i < xs.length - 1; i++) for (let j = 0; j < ys.length - 1; j++)
-      s += `<rect class="pano${vac.has(i + "," + j) ? " vacio" : ""}" data-p="${i},${j}" x="${X(xs[i])}" y="${Y(ys[j + 1])}" width="${(xs[i + 1] - xs[i]) * esc}" height="${(ys[j + 1] - ys[j]) * esc}"/>`;
-    xs.forEach((x, i) => { s += `<line class="eje" x1="${X(x)}" y1="${Y(0)}" x2="${X(x)}" y2="${Y(H)}"/><text x="${X(x) - 1}" y="${Y(H) - 2.5}">${LETRAS[i]}</text>`; });
-    ys.forEach((y, j) => { s += `<line class="eje" x1="${X(0)}" y1="${Y(y)}" x2="${X(W)}" y2="${Y(y)}"/><text x="${X(0) - 5}" y="${Y(y) + 1}">${j + 1}</text>`; });
-    for (const p of pl) {
-      const [t, i, j] = p.split(/[:,]/).map((v, k) => k ? +v : v);
-      if (t === "h" && i < xs.length - 1) s += `<line class="placa" x1="${X(xs[i])}" y1="${Y(ys[j])}" x2="${X(xs[i + 1])}" y2="${Y(ys[j])}"/>`;
-      if (t === "v" && j < ys.length - 1) s += `<line class="placa" x1="${X(xs[i])}" y1="${Y(ys[j])}" x2="${X(xs[i])}" y2="${Y(ys[j + 1])}"/>`;
-    }
-    if (modo === "placa") {
-      for (let i = 0; i < xs.length - 1; i++) for (let j = 0; j < ys.length; j++) s += `<line class="borde" data-e="h:${i},${j}" x1="${X(xs[i]) + 1}" y1="${Y(ys[j])}" x2="${X(xs[i + 1]) - 1}" y2="${Y(ys[j])}"/>`;
-      for (let i = 0; i < xs.length; i++) for (let j = 0; j < ys.length - 1; j++) s += `<line class="borde" data-e="v:${i},${j}" x1="${X(xs[i])}" y1="${Y(ys[j]) - 1}" x2="${X(xs[i])}" y2="${Y(ys[j + 1]) + 1}"/>`;
-    }
-    const m = construirModelo(st);
-    for (const c of m.columns) { const [x, y] = m.nodes[c.node]; s += `<rect class="col" x="${X(x) - 1.1}" y="${Y(y) - 1.1}" width="2.2" height="2.2"/>`; }
-    svg.innerHTML = s;
+  // ------------------------------------------------------------ editor CAD
+  function cambioModelo() { pistas(); revisar(); if (vistaActual === "3d") redibujar3D(); else necesita3D = true; marcarDesactualizado(); }
+  let necesita3D = true;
+  function revisar() {
+    const r = Plano.revisar(st.plano);
+    $("revision").innerHTML = r.err.map(t => `<div class="msg bad">${t}</div>`).join("") + r.av.map(t => `<div class="msg warn">${t}</div>`).join("");
+    return r;
   }
-  $("planta").addEventListener("click", (e) => {
-    const t = e.target;
-    if (t.dataset.p && modo === "pano") {
-      const k = t.dataset.p, v = new Set(st.vacios);
-      v.has(k) ? v.delete(k) : v.add(k);
-      if (v.size >= st.ejesX.length * st.ejesY.length) return;
-      st.vacios = [...v];
-    } else if (t.dataset.e) {
-      const k = t.dataset.e, v = new Set(st.placas);
-      v.has(k) ? v.delete(k) : v.add(k); st.placas = [...v];
-      if (st.placas.length && st.sistemaX === "PÓRTICOS" && st.sistemaY === "PÓRTICOS") { st.sistemaX = st.sistemaY = "DUAL"; aForm(); }
-    } else return;
-    guardarLocal(); dibujarPlanta(); redibujar3D(); marcarDesactualizado();
+  CAD.init($("cad"), $("cmd"), $("cadEstado"), {
+    plano: () => st.plano,
+    reemplazar: (p) => { st.plano = p; },
+    cambio: () => { guardarLocal(); cambioModelo(); },
+    props: () => ({ colB: st.secc.col[0], colH: st.secc.col[1], colAng: st.secc.colAng || 0, vigB: st.secc.viga[0], vigH: st.secc.viga[1], placaT: st.secc.placaT }),
+    herramienta: (h) => document.querySelectorAll("#cadBar [data-h]").forEach(b => b.classList.toggle("on", b.dataset.h === h)),
+    seleccion: mostrarSeleccion,
+    aviso: (t) => { $("estado").textContent = t; },
+    losasAuto: () => losasAuto(),
   });
-  document.querySelectorAll(".modo button").forEach(b => b.addEventListener("click", () => {
-    modo = b.dataset.modo; document.querySelectorAll(".modo button").forEach(o => o.classList.toggle("on", o === b)); dibujarPlanta();
-  }));
-  document.querySelectorAll("#steps button").forEach(b => b.addEventListener("click", () => {
-    document.querySelectorAll("#steps button").forEach(o => o.classList.toggle("on", o === b));
-    document.querySelectorAll(".step").forEach(s => s.classList.toggle("hidden", s.dataset.step !== b.dataset.step));
-    if (b.dataset.step === "2") dibujarPlanta();
-  }));
+  document.querySelectorAll("#cadBar [data-h]").forEach(b => b.addEventListener("click", () => CAD.herramienta(b.dataset.h)));
+  let ortoOn = false, imanOn = true;
+  $("cadOrto").addEventListener("click", () => { ortoOn = !ortoOn; CAD.orto(ortoOn); $("cadOrto").classList.toggle("on", ortoOn); });
+  $("cadIman").addEventListener("click", () => { imanOn = !imanOn; CAD.iman(imanOn); $("cadIman").classList.toggle("on", imanOn); });
+  $("cadDeshacer").addEventListener("click", () => CAD.deshacer());
+  $("cadRehacer").addEventListener("click", () => CAD.rehacer());
+  $("cadZoom").addEventListener("click", () => CAD.zoomExtension());
+  function losasAuto() {
+    let n = 0; CAD.cambiar(p => { n = Plano.losasAutomaticas(p); });
+    $("estado").textContent = n ? `Se crearon ${n} losas.` : "No hay paños cerrados nuevos (las losas ya existen o las vigas no forman recuadros).";
+  }
+  $("btnLosas").addEventListener("click", () => { mostrarVista("planta"); losasAuto(); });
+  $("btnGenerar").addEventListener("click", () => {
+    deForm();
+    CAD.cambiar(p => { const n = Plano.desdeEjes(st.luces.x, st.luces.y, st.secc); Object.assign(p, n); });
+    mostrarVista("planta"); CAD.zoomExtension();
+  });
+
+  // propiedades del elemento seleccionado
+  function buscarEl(id) { for (const k of ["columnas", "vigas", "placas", "losas", "ejes"]) { const o = st.plano[k].find(x => x.id === id); if (o) return [k, o]; } return [null, null]; }
+  function mostrarSeleccion(ids) {
+    const box = $("propSel");
+    if (!ids.length) { box.innerHTML = "Usa la herramienta Seleccionar (S) en la planta para editar una columna, viga o placa."; return; }
+    const els = ids.map(buscarEl).filter(x => x[0]);
+    const tipos = [...new Set(els.map(x => x[0]))];
+    irPaso("3");
+    if (tipos.length !== 1) { box.innerHTML = `${els.length} elementos de distinto tipo. <button class="small" id="propBorrar">Borrar</button>`; $("propBorrar").onclick = () => CAD.borrarSel(); return; }
+    const [k, o] = els[0], n = els.length > 1 ? ` (${els.length})` : "";
+    const campos = { columnas: [["b", "b (m)"], ["h", "h (m)"], ["ang", "Giro (°)"]], vigas: [["bw", "b (m)"], ["h", "h (m)"]], placas: [["t", "Espesor (m)"]], losas: [], ejes: [["nombre", "Nombre"]] }[k];
+    const nombre = { columnas: "Columna", vigas: "Viga", placas: "Placa", losas: "Losa", ejes: "Eje" }[k];
+    let info = "";
+    if (k === "columnas") info = `en (${o.x.toFixed(2)}, ${o.y.toFixed(2)})`;
+    if (k === "vigas" || k === "placas" || k === "ejes") info = `L = ${Plano.dist(o.a, o.b).toFixed(2)} m`;
+    if (k === "losas") info = `A = ${Math.abs(Plano.areaPoly(o.pts)).toFixed(2)} m²`;
+    box.innerHTML = `<div class="prop"><b>${nombre}${n}</b> <span class="hint">${els.length === 1 ? info : "se cambian todas"}</span>
+      <div class="row3">${campos.map(([c, l]) => `<label>${l}<input data-c="${c}" type="${c === "nombre" ? "text" : "number"}" step="0.05" value="${o[c] ?? ""}"></label>`).join("")}</div>
+      <div class="btns"><button class="small" id="propBorrar">Borrar</button></div></div>`;
+    box.querySelectorAll("input").forEach(inp => inp.addEventListener("change", () => {
+      const c = inp.dataset.c, v = c === "nombre" ? inp.value : parseFloat(inp.value);
+      if (c !== "nombre" && !(v >= (c === "ang" ? -360 : 0.05))) return;
+      CAD.cambiar(p => ids.forEach(id => { for (const kk of ["columnas", "vigas", "placas", "ejes"]) { const e = p[kk].find(x => x.id === id); if (e && c in e || (e && c === "ang")) e[c] = v; } }));
+    }));
+    $("propBorrar").onclick = () => CAD.borrarSel();
+  }
+  const aTodas = (k, fn) => CAD.cambiar(p => p[k].forEach(fn));
+  $("btnTodasCol").addEventListener("click", () => { deForm(); aTodas("columnas", c => { c.b = st.secc.col[0]; c.h = st.secc.col[1]; }); $("estado").textContent = "Sección aplicada a todas las columnas."; });
+  $("btnTodasVig").addEventListener("click", () => { deForm(); aTodas("vigas", v => { v.bw = st.secc.viga[0]; v.h = st.secc.viga[1]; }); $("estado").textContent = "Sección aplicada a todas las vigas."; });
+  $("btnTodasPla").addEventListener("click", () => { deForm(); aTodas("placas", w => { w.t = st.secc.placaT; }); $("estado").textContent = "Espesor aplicado a todas las placas."; });
+
+  // ------------------------------------------------------------ pasos y pestañas
+  function irPaso(n) {
+    document.querySelectorAll("#steps button").forEach(o => o.classList.toggle("on", o.dataset.step === n));
+    document.querySelectorAll(".step").forEach(s => s.classList.toggle("hidden", s.dataset.step !== n));
+  }
+  document.querySelectorAll("#steps button").forEach(b => b.addEventListener("click", () => { irPaso(b.dataset.step); if (b.dataset.step === "2" || b.dataset.step === "3") mostrarVista("planta"); }));
+  function mostrarVista(v) {
+    vistaActual = v;
+    document.querySelectorAll(".tabs-vista button").forEach(b => b.classList.toggle("on", b.dataset.vista === v));
+    $("cadWrap").classList.toggle("hidden", v !== "planta"); $("visorWrap").classList.toggle("hidden", v !== "3d");
+    if (v === "3d" && necesita3D) redibujar3D();
+    if (v === "planta") CAD.dibujar();
+  }
+  document.querySelectorAll(".tabs-vista button").forEach(b => b.addEventListener("click", () => mostrarVista(b.dataset.vista)));
+
+  // ------------------------------------------------------------ importar DXF
+  let dxfLeido = null;
+  $("btnDxf").addEventListener("click", () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); });
+  $("btnDxfCancelar").addEventListener("click", () => $("dlgDxf").close());
+  $("fileDxf").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) prepararDxf(await f.text(), f.name); e.target.value = ""; });
+  $("btnDxfEjemplo").addEventListener("click", () => prepararDxf(DXF.ejemplo(), "ejemplo.dxf"));
+  function prepararDxf(txt, nombre) {
+    try {
+      if (/^AC10\d\d/.test(txt.slice(0, 6))) throw new Error("Ese archivo es un DWG. En AutoCAD usa Guardar como → DXF.");
+      const d = DXF.leer(txt);
+      if (!d.ent.length) throw new Error("No encontré líneas ni polilíneas en el archivo.");
+      dxfLeido = d;
+      const esc = DXF.escalaUnidades(d.unidades) || DXF.escalaProbable(d);
+      const filas = Object.entries(d.capas).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<tr><td>${c.replace(/</g, "&lt;")}</td><td>${n}</td><td><select data-capa="${encodeURIComponent(c)}">
+        ${[["columnas", "Columnas"], ["placas", "Placas"], ["ejes", "Ejes"], ["vigas", "Vigas (eje de la viga)"], ["ignorar", "Ignorar"]].map(([v, t]) => `<option value="${v}" ${DXF.rolSugerido(c) === v ? "selected" : ""}>${t}</option>`).join("")}</select></td></tr>`).join("");
+      $("dxfInfo").innerHTML = `<p><b>${nombre}</b>: ${d.ent.length} entidades en ${Object.keys(d.capas).length} capas.</p>
+        <label>Unidades del dibujo <select id="dxfEsc">${[[1, "metros"], [0.01, "centímetros"], [0.001, "milímetros"]].map(([v, t]) => `<option value="${v}" ${v === esc ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+        <div class="scroll"><table class="wrap"><thead><tr><th>Capa</th><th>Objetos</th><th>Qué es</th></tr></thead><tbody>${filas}</tbody></table></div>
+        <label class="check"><input id="dxfVigas" type="checkbox" checked> Crear vigas sobre los ejes, de columna a columna (${st.secc.viga[0]} × ${st.secc.viga[1]} m)</label>
+        <label class="check"><input id="dxfLosas" type="checkbox" checked> Crear losas en los paños cerrados</label>
+        <p class="hint">Las columnas se leen de polilíneas cerradas (rectángulos, también girados) o bloques; las placas, de rectángulos delgados. Revisa el resultado en la planta: puedes corregir todo con el editor.</p>`;
+      $("btnDxfImportar").disabled = false;
+    } catch (err) { $("dxfInfo").innerHTML = `<div class="msg bad">${err.message}</div>`; $("btnDxfImportar").disabled = true; }
+  }
+  $("btnDxfImportar").addEventListener("click", () => {
+    if (!dxfLeido) return;
+    const roles = {}; $("dxfInfo").querySelectorAll("select[data-capa]").forEach(s => { roles[decodeURIComponent(s.dataset.capa)] = s.value; });
+    const r = DXF.importar(dxfLeido, roles, { escala: +$("dxfEsc").value, viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: $("dxfLosas").checked });
+    if (!r.plano.columnas.length && !r.plano.placas.length) { $("dxfInfo").insertAdjacentHTML("afterbegin", `<div class="msg bad">No salió ninguna columna ni placa: revisa qué capa es de columnas.</div>`); return; }
+    CAD.cambiar(p => Object.assign(p, r.plano));
+    $("dlgDxf").close(); mostrarVista("planta"); CAD.zoomExtension();
+    const p = r.plano;
+    $("estado").textContent = `Importado: ${p.columnas.length} columnas, ${p.placas.length} placas, ${p.vigas.length} vigas y ${p.losas.length} losas. ${r.avisos.join(" ")}`;
+    if (p.placas.length && st.sistemaX === "PÓRTICOS") { st.sistemaX = st.sistemaY = "DUAL"; aForm(); }
+  });
 
   // ------------------------------------------------------------ 3D
-  function redibujar3D() { try { Visor.dibujar(construirModelo(st), cotas(st)); actualizarVista(); } catch (e) { console.error(e); } }
+  function redibujar3D() { try { Visor.dibujar(construirModelo(st), cotas(st)); necesita3D = false; actualizarVista(); } catch (e) { console.error(e); } }
   function actualizarVista() {
     const v = $("modoVista").value, sel = $("selModo").value;
     Visor.colorNormal();
@@ -166,8 +218,10 @@
 
   // ------------------------------------------------------------ análisis
   function marcarDesactualizado() { if (ultimo) $("estado").textContent = "Cambiaste datos: vuelve a analizar para actualizar los resultados."; }
-  function analizar() {
+  function analizar(cambiarVista = true) {
     deForm();
+    const rv = revisar();
+    if (rv.err.length) { $("estado").innerHTML = `<span style="color:var(--bad)">${rv.err.join(" ")}</span>`; return; }
     $("estado").textContent = "Calculando…";
     setTimeout(() => {
       try {
@@ -178,19 +232,21 @@
         if (q0.S == null) throw new Error(q0.notaSuelo);
         const r = Irreg.analizarTodo(model, p);
         r.model = model; r.st = clon(st);
-        ultimo = r;
+        ultimo = r; st.colTipica = colTipica();
         $("estado").textContent = `Listo en ${((performance.now() - t) / 1000).toFixed(2)} s · ${Object.keys(model.nodes).length} nudos en planta, ${r.B.elems.length} elementos.`;
         mostrar(r);
         $("selModo").innerHTML = `<option value="">Sin animación</option>` + r.modes.map((m, i) => `<option value="${i}">Modo ${m.n} · T = ${m.T.toFixed(3)} s</option>`).join("");
         $("selModo").value = "0"; $("modoVista").value = "deriva";
-        actualizarVista();
+        if (cambiarVista) mostrarVista("3d"); else necesita3D = true;
+        redibujar3D();
       } catch (e) {
         console.error(e);
         $("estado").innerHTML = `<span style="color:var(--bad)">No se pudo analizar: ${e.message}</span>`;
       }
     }, 20);
   }
-  $("btnAnalizar").addEventListener("click", analizar);
+  $("btnAnalizar").addEventListener("click", () => analizar(true));
+
 
   // ------------------------------------------------------------ resultados
   const f = (v, d = 3) => (v == null || !isFinite(v)) ? "—" : v.toFixed(d);
@@ -266,9 +322,9 @@
     <p class="aviso">Prototipo educativo: verifica los resultados antes de usarlos en un proyecto real. No reemplaza el criterio ni la firma de un ingeniero.</p>`;
     $("resultados").innerHTML = h;
     document.querySelectorAll("#tablaModos tbody tr").forEach(tr => tr.addEventListener("click", () => {
-      $("selModo").value = tr.dataset.i; actualizarVista();
+      $("selModo").value = tr.dataset.i; mostrarVista("3d"); actualizarVista();
       document.querySelectorAll("#tablaModos tr").forEach(o => o.classList.toggle("sel", o === tr));
-      document.querySelector(".visor-wrap").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      document.querySelector(".tabs-vista").scrollIntoView({ behavior: "smooth", block: "nearest" });
     }));
   }
   function barras(r) {
@@ -284,13 +340,13 @@
   $("btnPredim").addEventListener("click", () => {
     deForm();
     const tips = Asistente.predim(st);
-    $("predim").innerHTML = tips.map((m, i) => `<div class="msg"><b>${m.titulo}</b>${m.texto}<div class="art">${m.art}</div><button class="small" data-i="${i}" style="margin-top:6px">Usar este valor</button></div>`).join("");
+    $("predim").innerHTML = tips.map((m, i) => `<div class="msg ${m.tipo === "warn" ? "warn" : ""}"><b>${m.titulo}</b>${m.texto}<div class="art">${m.art}</div>${m.aplicar ? `<button class="small" data-i="${i}" style="margin-top:6px">Usar en todo el edificio</button>` : ""}</div>`).join("");
     $("predim").querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const a = tips[+b.dataset.i].aplicar;
-      if (a.colB) st.secc.col = [a.colB, a.colH];
-      if (a.vigB) st.secc.viga = [a.vigB, a.vigH];
+      if (a.colB) { st.secc.col = [a.colB, a.colH]; aTodas("columnas", c => { c.b = a.colB; c.h = a.colH; }); }
+      if (a.vigB) { st.secc.viga = [a.vigB, a.vigH]; aTodas("vigas", v => { v.bw = a.vigB; v.h = a.vigH; }); }
       if (a.losaH) { const p = Asistente.pesoAligerado(a.losaH); st.cargas.cm = p + 200; st.cargas.cmRoof = p + 100; }
-      aForm(); guardarLocal(); redibujar3D(); marcarDesactualizado();
+      aForm(); guardarLocal(); cambioModelo();
       b.textContent = "Aplicado ✓";
     }));
   });
@@ -298,12 +354,15 @@
   // ------------------------------------------------------------ informe imprimible
   $("btnInforme").addEventListener("click", () => {
     if (!ultimo) { $("estado").textContent = "Primero analiza el edificio para generar el informe."; return; }
-    const r = ultimo, img = Visor.captura();
-    $("informe").innerHTML = `<h1>${r.st.nombre || "Proyecto"}</h1>
-      <p>Análisis sísmico con la Norma E.030-2026 · SismoPaso (prototipo educativo) · ${new Date().toLocaleDateString("es-PE")}</p>
-      <img src="${img}" style="max-width:100%;max-height:300px">
-      ${document.getElementById("resultados").innerHTML}`;
-    window.print();
+    const r = ultimo; mostrarVista("3d");
+    setTimeout(() => {
+      const img = Visor.captura();
+      $("informe").innerHTML = `<h1>${r.st.nombre || "Proyecto"}</h1>
+        <p>Análisis sísmico con la Norma E.030-2026 · SismoPaso (prototipo educativo) · ${new Date().toLocaleDateString("es-PE")}</p>
+        <img src="${img}" style="max-width:100%;max-height:300px">
+        ${$("resultados").innerHTML}`;
+      window.print();
+    }, 300);
   });
 
   // ------------------------------------------------------------ guardar / abrir / ejemplo / tema
@@ -314,22 +373,21 @@
   });
   $("fileAbrir").addEventListener("change", async (e) => {
     const file = e.target.files[0]; if (!file) return;
-    try { st = Object.assign(clon(EJEMPLO), JSON.parse(await file.text())); aForm(); guardarLocal(); dibujarPlanta(); redibujar3D(); ultimo = null; $("resultados").innerHTML = '<div class="vacio">Proyecto abierto. Pulsa <b>Analizar sismo</b>.</div>'; }
+    try { st = cargar(JSON.parse(await file.text())); aForm(); guardarLocal(); ultimo = null; cambioModelo(); CAD.zoomExtension(); $("resultados").innerHTML = '<div class="vacio">Proyecto abierto. Pulsa <b>Analizar sismo</b>.</div>'; }
     catch (err) { $("estado").textContent = "No se pudo leer el archivo."; }
     e.target.value = "";
   });
-  $("btnEjemplo").addEventListener("click", () => { st = clon(EJEMPLO); aForm(); guardarLocal(); dibujarPlanta(); redibujar3D(); analizar(); });
+  $("btnEjemplo").addEventListener("click", () => { st = nuevoEjemplo(); aForm(); guardarLocal(); CAD.zoomExtension(); cambioModelo(); analizar(false); });
   $("btnTema").addEventListener("click", () => {
     const d = document.documentElement, oscuro = d.dataset.theme ? d.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    d.dataset.theme = oscuro ? "light" : "dark"; Visor.tema(); redibujar3D();
+    d.dataset.theme = oscuro ? "light" : "dark"; Visor.tema(); redibujar3D(); CAD.dibujar();
   });
 
   // ------------------------------------------------------------ inicio
   $("uso").innerHTML = Object.entries(Asistente.USOS).map(([k, u]) => `<option value="${k}">${u.nombre}</option>`).join("");
-  const guardado = leerLocal(); if (guardado) st = Object.assign(clon(EJEMPLO), guardado);
+  const guardado = leerLocal(); if (guardado) st = cargar(guardado);
   aForm();
   CAMPOS.forEach(id => $(id).addEventListener("change", deForm));
   Visor.init($("visor"));
-  dibujarPlanta(); redibujar3D();
-  analizar();
+  requestAnimationFrame(() => { CAD.zoomExtension(); revisar(); analizar(false); });
 })();

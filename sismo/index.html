@@ -51,37 +51,56 @@
     </section>
 
     <section class="step hidden" data-step="2">
-      <h3>Ejes y pisos</h3>
-      <label>Luces en X (m, separadas por comas) <input id="ejesX" type="text"></label>
-      <label>Luces en Y (m) <input id="ejesY" type="text"></label>
+      <h3>Pisos</h3>
       <div class="row3">
         <label>N.º de pisos <input id="nPisos" type="number" min="1" max="30"></label>
         <label>Altura piso 1 (m) <input id="h1" type="number" step="0.05"></label>
         <label>Altura típica (m) <input id="h" type="number" step="0.05"></label>
       </div>
-      <div class="modo">
-        <span>Toca la planta para</span>
-        <button data-modo="pano" class="on">quitar o poner paños</button>
-        <button data-modo="placa">poner placas</button>
+      <h3>Planta</h3>
+      <p class="hint">Dibuja en la pestaña <b>Planta 2D</b> como en AutoCAD (todos los pisos usan esta planta), o trae tu plano.</p>
+      <div class="btns">
+        <button id="btnDxf" class="secondary">Importar plano DXF</button>
+        <button id="btnLosas" class="ghost">Losas automáticas</button>
       </div>
-      <svg id="planta" class="planta" viewBox="0 0 100 100"></svg>
-      <div class="hint">Los paños grises están vacíos (sin losa ni columnas). Las placas se dibujan en naranja sobre un eje.</div>
+      <details class="rapido">
+        <summary>Generar un pórtico rápido con luces</summary>
+        <label>Luces en X (m, separadas por comas) <input id="ejesX" type="text"></label>
+        <label>Luces en Y (m) <input id="ejesY" type="text"></label>
+        <button id="btnGenerar" class="ghost">Generar (reemplaza la planta)</button>
+      </details>
+      <details class="rapido">
+        <summary>Comandos del editor</summary>
+        <table class="wrap ayuda"><tbody>
+          <tr><td><b>C</b></td><td>Columna</td></tr><tr><td><b>V</b></td><td>Viga (encadenada; Esc termina)</td></tr>
+          <tr><td><b>P</b></td><td>Placa</td></tr><tr><td><b>L</b></td><td>Losa (toca dentro de un paño)</td></tr>
+          <tr><td><b>LA</b></td><td>Losas automáticas</td></tr><tr><td><b>E</b></td><td>Eje</td></tr>
+          <tr><td><b>S</b> / <b>B</b></td><td>Seleccionar / Borrar</td></tr>
+          <tr><td><b>x,y</b></td><td>Punto absoluto</td></tr><tr><td><b>@dx,dy</b></td><td>Punto relativo</td></tr>
+          <tr><td><b>@L&lt;ángulo</b></td><td>Polar (ej. @5&lt;90)</td></tr><tr><td><b>5</b></td><td>Distancia en la dirección del cursor</td></tr>
+          <tr><td><b>F8</b> / <b>F3</b></td><td>Orto / Imán</td></tr><tr><td><b>Ctrl+Z</b> / <b>Ctrl+Y</b></td><td>Deshacer / Rehacer</td></tr>
+          <tr><td><b>Z</b></td><td>Zoom a todo · rueda: zoom · arrastrar: mover</td></tr>
+        </tbody></table>
+      </details>
+      <div class="hint" id="hintPlano"></div>
     </section>
 
     <section class="step hidden" data-step="3">
-      <h3>Secciones y material</h3>
-      <div class="row">
-        <label>Columna b (X) m <input id="colB" type="number" step="0.05"></label>
-        <label>Columna h (Y) m <input id="colH" type="number" step="0.05"></label>
+      <h3>Elemento seleccionado</h3>
+      <div id="propSel" class="hint">Usa la herramienta Seleccionar (S) en la planta para editar una columna, viga o placa.</div>
+      <h3>Secciones para los elementos nuevos</h3>
+      <div class="row3">
+        <label>Columna b (m) <input id="colB" type="number" step="0.05"></label>
+        <label>Columna h (m) <input id="colH" type="number" step="0.05"></label>
+        <label>Giro (°) <input id="colAng" type="number" step="5"></label>
       </div>
-      <div class="row">
+      <div class="row3">
         <label>Viga b (m) <input id="vigB" type="number" step="0.05"></label>
         <label>Viga h (m) <input id="vigH" type="number" step="0.05"></label>
+        <label>Placa t (m) <input id="placaT" type="number" step="0.05"></label>
       </div>
-      <div class="row">
-        <label>Espesor de placa (m) <input id="placaT" type="number" step="0.05"></label>
-        <label>f'c (kg/cm²) <input id="fc" type="number" step="5"></label>
-      </div>
+      <div class="btns"><button id="btnTodasCol" class="ghost small">Aplicar a todas las columnas</button><button id="btnTodasVig" class="ghost small">… a todas las vigas</button><button id="btnTodasPla" class="ghost small">… a todas las placas</button></div>
+      <label>f'c (kg/cm²) <input id="fc" type="number" step="5"></label>
       <button id="btnPredim" class="secondary">Sugerir predimensionamiento</button>
       <div id="predim" class="tips"></div>
     </section>
@@ -99,12 +118,39 @@
       <div class="hint" id="hintCargas"></div>
     </section>
 
+    <div id="revision" class="tips"></div>
     <button id="btnAnalizar" class="primary">Analizar sismo ▶</button>
     <div id="estado" class="estado"></div>
   </aside>
 
   <section class="vista">
-    <div class="visor-wrap">
+    <div class="tabs-vista">
+      <button data-vista="planta" class="on">Planta 2D</button>
+      <button data-vista="3d">Vista 3D</button>
+    </div>
+    <div class="cad-wrap" id="cadWrap">
+      <div class="cad-bar" id="cadBar">
+        <button data-h="sel" class="on" title="Seleccionar (S)">↖ Sel</button>
+        <button data-h="col" title="Columna (C)">▪ Columna</button>
+        <button data-h="viga" title="Viga (V)">━ Viga</button>
+        <button data-h="placa" title="Placa (P)">▬ Placa</button>
+        <button data-h="losa" title="Losa (L)">▦ Losa</button>
+        <button data-h="eje" title="Eje (E)">┆ Eje</button>
+        <button data-h="borrar" title="Borrar (B)">✕ Borrar</button>
+        <span class="sep"></span>
+        <button id="cadOrto" title="Orto (F8)">Orto</button>
+        <button id="cadIman" class="on" title="Imán (F3)">Imán</button>
+        <button id="cadDeshacer" title="Deshacer (Ctrl+Z)">↶</button>
+        <button id="cadRehacer" title="Rehacer (Ctrl+Y)">↷</button>
+        <button id="cadZoom" title="Zoom a todo (Z)">⤢</button>
+      </div>
+      <svg id="cad" class="cad"></svg>
+      <div class="cad-pie">
+        <input id="cmd" class="cmd" type="text" autocomplete="off" spellcheck="false" placeholder="Comando: C, V, P, L, E… o coordenadas x,y · @dx,dy · @L<ángulo">
+        <div id="cadEstado" class="cad-estado"></div>
+      </div>
+    </div>
+    <div class="visor-wrap hidden" id="visorWrap">
       <div id="visor" class="visor"></div>
       <div class="visor-bar">
         <select id="modoVista">
@@ -126,11 +172,28 @@
 
 <div id="informe" class="informe"></div>
 
+<dialog id="dlgDxf" class="dlg">
+  <h3>Importar plano DXF</h3>
+  <p class="hint">En AutoCAD: <b>Guardar como → DXF</b> (cualquier versión). El DWG es un formato cerrado; el DXF guarda las mismas capas y líneas. Se lee en tu navegador, el archivo no se sube a ningún lado.</p>
+  <div class="btns">
+    <label class="ghost file">Elegir archivo .dxf<input id="fileDxf" type="file" accept=".dxf"></label>
+    <button id="btnDxfEjemplo" class="ghost">Usar un DXF de ejemplo</button>
+  </div>
+  <div id="dxfInfo"></div>
+  <div class="btns fin">
+    <button id="btnDxfCancelar" class="ghost">Cancelar</button>
+    <button id="btnDxfImportar" class="primary-s" disabled>Importar</button>
+  </div>
+</dialog>
+
 <script src="lib/three.min.js"></script>
 <script src="lib/OrbitControls.js"></script>
 <script src="src/solver.js"></script>
 <script src="src/e030.js"></script>
 <script src="src/irreg.js"></script>
+<script src="src/plano.js"></script>
+<script src="src/dxf.js"></script>
+<script src="src/cad.js"></script>
 <script src="src/asistente.js"></script>
 <script src="src/visor.js"></script>
 <script src="src/app.js"></script>

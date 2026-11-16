@@ -19,9 +19,10 @@
   // Predimensionamiento a partir de la planta y los pisos
   function predim(st) {
     const out = [];
-    const lx = st.ejesX, ly = st.ejesY;
-    const Lmax = Math.max(...lx, ...ly);
-    const Lmin = Math.min(...lx, ...ly);
+    const luces = root.Plano.luces(st.plano);
+    if (!luces.length) return [{ tipo: "warn", titulo: "Primero dibuja las vigas", texto: "El predimensionamiento usa las luces de las vigas de tu planta.", art: "" }];
+    const Lmax = Math.max(...luces);
+    const Lmin = Math.min(...luces);
     // losa aligerada en una dirección: h ≈ L/25 (se arma en la luz corta del paño)
     const hl = Lmin <= 4 ? 0.17 : Lmin <= 5.5 ? 0.20 : Lmin <= 6.5 ? 0.25 : 0.30;
     out.push({ tipo: "info", titulo: `Losa aligerada: h = ${hl.toFixed(2)} m`,
@@ -34,14 +35,14 @@
       art: "Regla práctica; ancho mínimo de 25 cm para vigas de sistemas sismorresistentes (E.060, cap. 21).", aplicar: { vigB: bv, vigH: hv } });
     // columnas: P = 1 t/m² × área tributaria × pisos; A = P / (0,45 f'c) centrales y P / (0,35 f'c) perimetrales
     const fc = st.fc;
-    const tribC = (Math.max(...lx)) * (Math.max(...ly));
+    const tribC = Lmax * Lmax;
     const tribE = tribC / 2;
     const Pc = 1.0 * tribC * st.pisos.n, Pe = 1.0 * tribE * st.pisos.n;
     const Ac = Pc * 1000 / (0.45 * fc), Ae = Pe * 1000 / (0.35 * fc);
     const lc = r05(Math.sqrt(Math.max(Ac, Ae)) / 100);
     const lcol = Math.max(0.30, lc);
     out.push({ tipo: "info", titulo: `Columnas: ${lcol.toFixed(2)} × ${lcol.toFixed(2)} m (por carga de gravedad)`,
-      texto: `Central: P ≈ 1 t/m² × ${tribC.toFixed(1)} m² × ${st.pisos.n} pisos = ${Pc.toFixed(0)} t → A = P/(0,45 f'c) = ${Ac.toFixed(0)} cm². ` +
+      texto: `Central (área tributaria ≈ luz mayor²): P ≈ 1 t/m² × ${tribC.toFixed(1)} m² × ${st.pisos.n} pisos = ${Pc.toFixed(0)} t → A = P/(0,45 f'c) = ${Ac.toFixed(0)} cm². ` +
         `Perimetral: P ≈ ${Pe.toFixed(0)} t → A = P/(0,35 f'c) = ${Ae.toFixed(0)} cm². En pórticos, la deriva suele pedir columnas más grandes: el análisis te lo dirá.`,
       art: "Regla práctica de predimensionamiento (carga de servicio de 1 t/m² por piso).", aplicar: { colB: lcol, colH: lcol } });
     return out;
@@ -80,7 +81,7 @@
         const D = r.dirs[d === "X" ? 0 : 1];
         const sug = [];
         if (D.fracMuros < 0.2) {
-          const c = st.secc.col, ladoX = d === "X" ? c[0] : c[1];
+          const c = st.colTipica || st.secc.col, ladoX = d === "X" ? c[0] : c[1];
           // en pórticos la rigidez crece con la inercia de columnas y vigas; aproximación: lado ∝ f^(1/3)
           sug.push(`aumentar la columna en la dirección ${d} de ${ladoX.toFixed(2)} m a ≈ ${r05(ladoX * Math.cbrt(f)).toFixed(2)} m (y las vigas en proporción)`);
           const pl = placasNecesarias(r, st.fc, st.secc.placaT)[d === "X" ? 0 : 1];

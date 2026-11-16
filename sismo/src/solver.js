@@ -135,7 +135,7 @@
     const elems = [];
     const colAt = {}; // "id@k" -> sección de la columna que llega o sale (para zonas rígidas y peso de vigas)
     for (const c of model.columns) for (let k = c.p1; k <= c.p2; k++) {
-      elems.push({ type: "col", a: addPt(c.node, k - 1), b: addPt(c.node, k), sec: c.sec, k });
+      elems.push({ type: "col", a: addPt(c.node, k - 1), b: addPt(c.node, k), sec: c.sec, k, ang: (c.ang || 0) * Math.PI / 180 });
       colAt[key(c.node, k)] = c.sec; colAt[key(c.node, k - 1)] = colAt[key(c.node, k - 1)] || c.sec;
     }
     // placas: columna ancha en el eje del muro + brazos rígidos hacia sus extremos en cada nivel
