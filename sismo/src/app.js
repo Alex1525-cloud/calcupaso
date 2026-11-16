@@ -33,7 +33,7 @@
   }
 
   // ------------------------------------------------------------ modelo para el solver
-  const construirModelo = (s) => Object.assign(Plano.aModelo(Object.assign({}, s.plano, { losaTipo: s.losa }), s.pisos, s.fc, s.cargas, Asistente.factorCV(s.categoria, s.uso)).model, { pDelta: !!s.pDelta, fy: s.fy || 4200 });
+  const construirModelo = (s) => Object.assign(Plano.aModelo(Object.assign({}, s.plano, { losaTipo: s.losa, diafragma: s.diafragma || "rigido", modeloPlaca: s.modeloPlaca || "lamina" }), s.pisos, s.fc, s.cargas, Asistente.factorCV(s.categoria, s.uso)).model, { pDelta: !!s.pDelta, fy: s.fy || 4200 });
   const cotas = (s) => { const z = [0]; for (let k = 0; k < s.pisos.n; k++) z.push(z[k] + (k ? s.pisos.h : s.pisos.h1)); return z; };
   function colTipica() {
     const cnt = {}; st.plano.columnas.forEach(c => { const k = c.b + "x" + c.h; cnt[k] = (cnt[k] || 0) + 1; });
@@ -42,10 +42,10 @@
   }
 
   // ------------------------------------------------------------ formulario
-  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "pDelta", "vertical", "ise", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "placaMat", "fm", "vm", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
+  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "pDelta", "vertical", "diafragma", "modeloPlaca", "ise", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "placaMat", "fm", "vm", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
   function aForm() {
     $("nombre").value = st.nombre; $("uso").value = st.uso; $("zona").value = st.zona; $("suelo").value = st.suelo; $("vs30").value = st.vs30 ?? "";
-    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30; $("pDelta").checked = !!st.pDelta; $("ise").checked = !!st.ise; $("vertical").checked = !!st.vertical;
+    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30; $("pDelta").checked = !!st.pDelta; $("ise").checked = !!st.ise; $("vertical").checked = !!st.vertical; $("diafragma").value = st.diafragma || "rigido"; $("modeloPlaca").value = st.modeloPlaca || "lamina";
     $("ejesX").value = st.luces.x.join(", "); $("ejesY").value = st.luces.y.join(", ");
     $("nPisos").value = st.pisos.n; $("h1").value = st.pisos.h1; $("h").value = st.pisos.h;
     $("colB").value = st.secc.col[0]; $("colH").value = st.secc.col[1]; $("colAng").value = st.secc.colAng || 0;
@@ -62,7 +62,7 @@
     const prevUso = st.uso;
     st.nombre = $("nombre").value; st.uso = $("uso").value; st.zona = +$("zona").value; st.suelo = $("suelo").value;
     st.vs30 = $("vs30").value === "" ? null : num("vs30", null);
-    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked; st.pDelta = $("pDelta").checked; st.ise = $("ise").checked; st.vertical = $("vertical").checked;
+    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked; st.pDelta = $("pDelta").checked; st.ise = $("ise").checked; st.vertical = $("vertical").checked; st.diafragma = $("diafragma").value; st.modeloPlaca = $("modeloPlaca").value;
     st.luces = { x: lista("ejesX", st.luces.x), y: lista("ejesY", st.luces.y) };
     st.pisos = { n: Math.max(1, Math.min(30, Math.round(num("nPisos", 4)))), h1: num("h1", 3), h: num("h", 2.8) };
     st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], colAng: num("colAng", 0), colForma: $("colForma").value, colT: num("colT", 0.25), viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25), placaMat: $("placaMat").value, fm: num("fm", 65), vm: num("vm", 8.1) };
@@ -207,7 +207,7 @@
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
     if (window.DWGLector) return Promise.resolve(window.DWGLector);
-    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116j"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116k"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
   $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });
@@ -297,7 +297,7 @@
     }
     if (sel !== "") {
       const m = ultimo.modes[+sel];
-      Visor.modo(ultimo.B.levels, m.phi, $("escala").value / 50);
+      Visor.modo(ultimo.B, m.phi, $("escala").value / 50);
       $("leyenda").innerHTML += (v === "deriva" ? "<br>" : "") + `Modo ${m.n}: T = ${m.T.toFixed(3)} s · UX ${(100 * m.UX).toFixed(0)}% · UY ${(100 * m.UY).toFixed(0)}% · RZ ${(100 * m.RZ).toFixed(0)}%`;
     } else Visor.modo(null);
   }
@@ -514,7 +514,7 @@
           <tr><td>Sistema X · Y</td><td>${q.sistemaX} (R0 = ${q.R0x}) · ${q.sistemaY} (R0 = ${q.R0y})</td></tr>
           <tr><td>Ec</td><td>15000·√f'c = ${f(15000 * Math.sqrt(st.fc), 0)} kg/cm²</td></tr>
           <tr><td>Masa</td><td>100% CM + ${st.categoria === "C" ? 25 : 50}% CV, 25% CV azotea</td></tr>
-          <tr><td>Modelo</td><td>Secciones brutas, ${r.ise ? "base sobre resortes (ISE)" : "base empotrada"}, diafragma rígido${st.pDelta ? ", con P-Δ" : ""}</td></tr>
+          <tr><td>Modelo</td><td>Secciones brutas, ${r.ise ? "base sobre resortes (ISE)" : "base empotrada"}, ${r.B.flex ? "diafragma flexible (membrana de la losa)" : "diafragma rígido"}${r.B.elems.some(e => e.wall != null) ? (r.B.elems.some(e => e.lam) ? ", placas como lámina (elementos finitos)" : ", placas como columna ancha") : ""}${st.pDelta ? ", con P-Δ" : ""}</td></tr>
           <tr><td>Periodo inicial hn/CT</td><td>${f(r.hn, 2)} / ${q.CT} = ${f(r.Tini)} s</td></tr>
         </tbody></table>
       </div>

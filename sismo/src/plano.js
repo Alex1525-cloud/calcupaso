@@ -218,7 +218,7 @@
     const slabs = p.losas.filter(l => (l.tipo || (tl && tl.tipo)) !== "vacio").map(l => {
       const tipo = l.tipo || (tl ? tl.tipo : "aligerada1"), h = l.h || (tl && tipo === tl.tipo ? tl.h : (TIPOS_LOSA[tipo].h[1] || TIPOS_LOSA[tipo].h[0]));
       const extra = tl ? pesoLosa(tipo, h) : (l.tipo ? pesoLosa(tipo, h) - 300 : 0); // sin losaTipo: diferencia respecto a la aligerada de 0.20 incluida en la CM
-      const [p1, p2] = rango(l); const o = { nodes: l.pts.map(nodo), p1, p2, cm: extra / 1000, tipo };
+      const [p1, p2] = rango(l); const o = { nodes: l.pts.map(nodo), p1, p2, cm: extra / 1000, tipo, h };
       if (tipo === "escalera") { o.cm += 0.1; o.cvAbs = (cargas.cvEsc || 200) / 1000; }
       return o;
     }).filter(o => o.p1 <= o.p2);
@@ -237,7 +237,7 @@
     const stories = Array.from({ length: n }, (_, i) => ({ name: "Piso" + (i + 1), h: i ? pisos.h : pisos.h1 }));
     return {
       model: {
-        stories, fc, E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
+        stories, fc, wallModel: p.modeloPlaca || "lamina", diafragma: p.diafragma || "rigido", E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
         loads: { cm: cargas.cm / 1000, cmRoof: cargas.cmRoof / 1000, cv: cargas.cv / 1000, cvRoof: cargas.cvRoof / 1000 },
         aberturas: { Abruta, Aab },
         massFactors: { cm: 1, cv: typeof catC === "number" ? catC : (catC ? 0.25 : 0.5), cvRoof: 0.25 },

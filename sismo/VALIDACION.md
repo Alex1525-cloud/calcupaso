@@ -25,29 +25,36 @@ Mismos edificios que la batería de casos del script con la API de ETABS (`etabs
 |  | V dinámico X (t) | 59.05 | 59.05 | -0.0% |
 |  | Deriva máx. X | 0.0147 | 0.0147 | 0.3% |
 |  | Ip | 0.90 | 0.90 | 0.0% |
-| 02c placas (muros) | T1 (s) | 0.177 | 0.172 | 2.9% |
-|  | T3 (s) | 0.121 | 0.118 | 2.4% |
+| 02c placas (muros) | T1 (s) | 0.174 | 0.172 | 1.0% |
+|  | T3 (s) | 0.119 | 0.118 | 0.5% |
 |  | Peso sísmico (t) | 780.80 | 780.79 | 0.0% |
 |  | V estático X (t) | 161.04 | 161.04 | -0.0% |
-|  | V dinámico X (t) | 125.71 | 124.15 | 1.3% |
-|  | Deriva máx. X | 0.0011 | 0.0011 | 0.8% |
+|  | V dinámico X (t) | 124.87 | 124.15 | 0.6% |
+|  | Deriva máx. X | 0.0011 | 0.0011 | -2.3% |
 |  | Ip | 1.00 | 1.00 | 0.0% |
-| 02d placas (dual) | T1 (s) | 0.174 | 0.169 | 3.1% |
-|  | T3 (s) | 0.119 | 0.116 | 2.8% |
+| 02d placas (dual) | T1 (s) | 0.170 | 0.169 | 0.8% |
+|  | T3 (s) | 0.117 | 0.116 | 0.4% |
 |  | Peso sísmico (t) | 788.48 | 788.47 | 0.0% |
 |  | V estático X (t) | 139.39 | 139.39 | 0.0% |
-|  | V dinámico X (t) | 110.83 | 109.39 | 1.3% |
-|  | Deriva máx. X | 0.0010 | 0.0010 | 4.8% |
+|  | V dinámico X (t) | 109.91 | 109.39 | 0.5% |
+|  | Deriva máx. X | 0.0010 | 0.0010 | 1.3% |
 |  | Ip | 1.00 | 1.00 | 0.0% |
 | 04 torsión (placas en un borde) | T1 (s) | 0.612 | 0.611 | 0.2% |
 |  | T3 (s) | 0.192 | 0.192 | 0.1% |
 |  | Peso sísmico (t) | 708.80 | 708.79 | 0.0% |
-|  | V estático X (t) | 204.76 | 205.05 | -0.1% |
-|  | V dinámico X (t) | 179.45 | 179.69 | -0.1% |
+|  | V estático X (t) | 204.75 | 205.05 | -0.1% |
+|  | V dinámico X (t) | 179.44 | 179.69 | -0.1% |
 |  | Deriva máx. X | 0.0148 | 0.0148 | 0.3% |
 |  | Ip | 0.60 | 0.60 | 0.0% |
 
+Placas: columna ancha (modelo anterior) frente a lámina (modelo actual), periodo T1:
+
+| Caso | Columna ancha | ETABS 22 | Dif. | Lámina | ETABS 22 | Dif. |
+|---|---|---|---|---|---|---|
+| 02c placas (muros) | 0.177 | 0.172 | 2.9% | 0.174 | 0.172 | 1.0% |
+| 02d placas (dual) | 0.174 | 0.169 | 3.1% | 0.170 | 0.169 | 0.8% |
+| 04 torsión (placas en un borde) | 0.612 | 0.611 | 0.2% | 0.612 | 0.611 | 0.2% |
 
 **Qué muestra:** en pórticos (casos 01, 02b, 03 y 04) el motor reproduce a ETABS prácticamente exacto: periodos, peso, cortantes, derivas, la irregularidad de esquinas entrantes (Ip = 0,9) y la torsional extrema (Ip = 0,6, Δmax/Δprom = 1,93 frente a 1,94).
 
-**Placas:** el prototipo modela cada placa como una columna ancha con brazos rígidos (método de la columna ancha), y ETABS la modela con elementos lámina. La placa sale alrededor de 3% más flexible: el periodo es ~3% mayor y el cortante dinámico ~1% mayor. Para un prototipo es aceptable, y en la fase 2 se puede cambiar a un elemento lámina para que coincida exacto.
+**Placas:** desde noviembre de 2026 cada placa se modela como lámina: membranas cuadriláteras con modos incompatibles (Q6, Wilson-Taylor), una por piso a lo alto y de unos 0,75 m a lo largo, y una columna central solo para la flexión fuera del plano. La diferencia con ETABS bajó de ~3% (columna ancha) a ~1% en el periodo y ~0,6% en el cortante dinámico. Afinar la malla no cambia el resultado (converge). La columna ancha sigue disponible como opción, y es la que se usa con interacción suelo-estructura.

@@ -12,10 +12,13 @@ const casos = [
 ];
 const fmt = (a, b, d) => `${a.toFixed(d)} | ${b.toFixed(d)} | ${(100 * (a - b) / b).toFixed(1)}%`;
 let md = "| Caso | Magnitud | SismoPaso | ETABS 22 | Diferencia |\n|---|---|---|---|---|\n";
+const ancha = [];
 for (const [n, m, p, e] of casos) {
-  const r = I.analizarTodo(m, p);
+  const r = I.analizarTodo(Object.assign({}, m, { wallModel: "lamina" }), p);
+  if (m.walls && m.walls.length) { const ra = I.analizarTodo(m, p); ancha.push(`| ${n} | ${fmt(ra.modes[0].T, e.T1, 3)} | ${fmt(r.modes[0].T, e.T1, 3)} |`); }
   const v = { T1: r.modes[0].T, T3: r.modes[2].T, P: r.P, Vx: r.dirs[0].Vest, Vd: r.dirs[0].Vdin, dX: r.derivaMax.X, Ip: r.irreg.Ip };
   const rows = [["T1 (s)", "T1", 3], ["T3 (s)", "T3", 3], ["Peso sísmico (t)", "P", 2], ["V estático X (t)", "Vx", 2], ["V dinámico X (t)", "Vd", 2], ["Deriva máx. X", "dX", 4], ["Ip", "Ip", 2]];
   rows.forEach(([lbl, k, d], i) => { md += `| ${i ? "" : n} | ${lbl} | ${fmt(v[k], e[k], d)} |\n`; });
 }
+md += "\nPlacas: columna ancha (modelo anterior) frente a lámina (modelo actual), periodo T1:\n\n| Caso | Columna ancha | ETABS 22 | Dif. | Lámina | ETABS 22 | Dif. |\n|---|---|---|---|---|---|---|\n" + ancha.join("\n") + "\n";
 console.log(md);

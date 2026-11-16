@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116j">
+<link rel="stylesheet" href="src/app.css?v=20261116k">
 </head>
 <body>
 <header class="top">
@@ -69,6 +69,10 @@
       <label class="check"><input id="dir30" type="checkbox"> Sismo 100% + 30% en las derivas (arts. 33.3 y 43)</label>
       <label class="check"><input id="pDelta" type="checkbox"> Incluir el efecto P-Δ en el análisis (rigidez geométrica con el peso sísmico)</label>
       <label class="check"><input id="vertical" type="checkbox"> Incluir el sismo vertical (2/3 del espectro) en el diseño de los elementos</label>
+      <div class="row3">
+        <label>Diafragma (losa) <select id="diafragma" title="Rígido: cada piso se mueve como un bloque. Flexible: la losa se modela con su rigidez real en su plano (plantas largas, losas delgadas o con aberturas grandes)."><option value="rigido">Rígido</option><option value="flexible">Flexible (losa con su rigidez real)</option></select></label>
+        <label>Modelo de placas <select id="modeloPlaca" title="Lámina: el muro se divide en elementos finitos (como ETABS). Columna ancha: una barra en el eje del muro."><option value="lamina">Lámina (elementos finitos)</option><option value="columna">Columna ancha</option></select></label>
+      </div>
       <div class="hint" id="hintProyecto"></div>
     </section>
 
@@ -228,11 +232,11 @@
 
   <details open><summary>1. Etapas del análisis</summary>
     <ol class="etapas">
-      <li><b>Modelo.</b> Columnas, vigas y placas como elementos de pórtico 3D (con deformación por corte). Concreto con E<sub>c</sub> = 15 000·√f'c, ν = 0,20 y γ = 2,4 t/m³. Secciones brutas (art. 30.2). Base empotrada. Cada techo es un <b>diafragma rígido</b> con 3 grados de libertad: X, Y y giro.</li>
+      <li><b>Modelo.</b> Columnas y vigas como elementos de pórtico 3D (con deformación por corte). Las placas, como <b>lámina</b>: el muro se divide en elementos finitos de membrana (Q6, de unos 0,75 m) en cada piso, igual que el shell de ETABS; también puedes elegir el modelo de columna ancha. Concreto con E<sub>c</sub> = 15 000·√f'c, ν = 0,20 y γ = 2,4 t/m³. Secciones brutas (art. 30.2). Base empotrada o sobre resortes (ISE). Cada techo es un <b>diafragma rígido</b> (X, Y y giro) o, si lo eliges, <b>flexible</b>: la losa se modela como membrana con su espesor que trabaja en su plano (maciza: todo su espesor; aligerada o nervada: la losa superior de 5 cm) y cada nudo tiene su propio desplazamiento.</li>
       <li><b>Peso sísmico P</b> (art. 31): 100% de la carga muerta + un porcentaje de la carga viva según la categoría. Es el 50% en A y B, el 25% en C, el 80% en depósitos y el 25% en azoteas. El peso propio de vigas y columnas se calcula solo, y en las vigas se usa la luz libre, igual que ETABS.</li>
       <li><b>Parámetros:</b> Z según la zona, U según la categoría (Tabla 7), S, Tp y TL según el suelo y el Vs30 (Tablas 4 y 5). C con el tramo nuevo para T &lt; 0,2·Tp (art. 18). R = R0·Ia·Ip, con R0 según el sistema (art. 20 y Tabla 10) y las irregularidades (Tablas 11 y 12).</li>
       <li><b>Análisis estático</b> (arts. 33.2 a 36): V = Z·U·C·S/R·P, con C/R ≥ 0,11. Las fuerzas se reparten en altura con el exponente k.</li>
-      <li><b>Análisis modal:</b> se calculan todos los modos (3 por piso) con su masa participativa, y se verifica que la suma llegue al 90%.</li>
+      <li><b>Análisis modal:</b> se calculan todos los modos (3 por piso con diafragma rígido; 2 por nudo con masa si es flexible) con su masa participativa, y se verifica que la suma llegue al 90%.</li>
       <li><b>Análisis espectral:</b> Sa = Z·U·C·S/R·g en cada modo. Los modos se combinan con <b>CQC</b> al 5% de amortiguamiento.</li>
       <li><b>Escalamiento:</b> si el cortante dinámico es menor que el 80% del estático (90% si es irregular), se indica el factor para escalar las fuerzas de diseño (art. 44).</li>
       <li><b>Excentricidad accidental:</b> en cada piso se aplica un momento torsor de la fuerza del piso × <b>0,05 × la dimensión perpendicular al sismo</b> (arts. 37 y 45). Se suma en valor absoluto, que es el caso más desfavorable (+ o −).</li>
@@ -250,10 +254,10 @@
       <tr><td>Pórticos 40×40</td><td>0,610 / 0,610</td><td>84,67 / 84,70</td><td>0,0127 / 0,0127</td><td>&lt; 0,5%</td></tr>
       <tr><td>Planta en L (esquinas entrantes)</td><td>0,563 / 0,563</td><td>59,05 / 59,05</td><td>0,0147 / 0,0147</td><td>&lt; 0,5%</td></tr>
       <tr><td>Torsión extrema (placas en un borde)</td><td>0,612 / 0,611</td><td>179,45 / 179,69</td><td>0,0148 / 0,0148</td><td>&lt; 0,5%</td></tr>
-      <tr><td>Muros de concreto</td><td>0,177 / 0,172</td><td>125,71 / 124,15</td><td>0,0011 / 0,0011</td><td>≈ 3% (T)</td></tr>
-      <tr><td>Dual (pórticos + placas)</td><td>0,174 / 0,169</td><td>110,83 / 109,39</td><td>0,0010 / 0,0010</td><td>≈ 3% (T)</td></tr>
+      <tr><td>Muros de concreto</td><td>0,174 / 0,172</td><td>124,87 / 124,15</td><td>0,0011 / 0,0011</td><td>≈ 1%</td></tr>
+      <tr><td>Dual (pórticos + placas)</td><td>0,170 / 0,169</td><td>109,91 / 109,39</td><td>0,0010 / 0,0010</td><td>≈ 1%</td></tr>
     </tbody></table></div>
-    <p><b>Error esperado:</b> en <b>pórticos</b>, menos de 0,5% en periodos, peso, cortantes y derivas. El peso sísmico y el cortante estático coinciden exacto. En edificios con <b>placas</b>, el periodo sale cerca de 3% mayor y el cortante dinámico cerca de 1% mayor. Esto se debe a que SismoPaso modela cada placa como una "columna ancha" con brazos rígidos, y ETABS la modela con elementos lámina (shell).</p>
+    <p><b>Error esperado:</b> en <b>pórticos</b>, menos de 0,5% en periodos, peso, cortantes y derivas. El peso sísmico y el cortante estático coinciden exacto. En edificios con <b>placas</b> modeladas como lámina, el periodo sale cerca de 1% mayor y el cortante dinámico cerca de 0,5% mayor (con la columna ancha la diferencia sube a ~3%). La pequeña diferencia viene de que ETABS usa un shell con 6 grados de libertad por nudo y SismoPaso una membrana más la flexión fuera del plano en el eje del muro.</p>
   </details>
 
   <details><summary>Fuerzas internas y diseño E.060</summary>
@@ -266,15 +270,17 @@
       <li><b>Piso débil y sistemas no paralelos:</b> la resistencia al corte de cada entrepiso se estima con acero mínimo (columnas 1%, placas 0,25%), comparando con el piso de arriba (80% y 65%). Los ejes a 30° o más de X e Y que toman más del 10% del cortante marcan sistemas no paralelos.</li>
       <li><b>Albañilería confinada (E.070):</b> los muros se modelan como placas con Em = 500 f'm y Gm = 0,4 Em. Se revisa el espesor, el esfuerzo axial, la fisuración con el sismo moderado y la resistencia global (Σ Vm ≥ V del sismo severo). El límite de deriva es 0,005.</li>
       <li><b>Interacción suelo-estructura (opcional):</b> cada columna o placa se apoya en resortes con las rigideces de Gazetas para su zapata (tamaño por cargas de gravedad y qadm). El suelo usa G = 0,5·ρ·Vs², con el Vs30 del paso 1 o un valor típico del perfil.</li>
+      <li><b>Diafragma flexible y aberturas:</b> con «Diafragma: Flexible» (paso 1) cada paño de losa es una membrana; los vacíos y escaleras quedan sin membrana, así que una abertura grande se nota sola en los periodos, las derivas y la torsión. Sirve para plantas largas o angostas, losas delgadas y pisos con grandes vacíos. Las cargas sísmicas de piso se reparten según la masa de cada nudo.</li>
       <li><b>Plantas distintas por piso:</b> en la planta eliges el piso que editas (como los niveles de Revit). Lo que dibujas va solo en ese piso, y borrar quita el elemento solo de ese piso. En el panel de propiedades cada elemento tiene «desde piso» y «hasta piso». Así se modelan retranqueos, columnas que nacen arriba y azoteas parciales.</li>
       <li><b>Diseño:</b> vigas (flexión y corte por capacidad), columnas (diagrama de interacción por fibras, biaxial), placas (núcleos, acero repartido, corte amplificado) y zapatas por capacidad portante, punzonamiento y corte.</li>
     </ul>
   </details>
 
-  <details><summary>3. Qué no hace todavía (límites)</summary>
+  <details><summary>3. Qué no hace (alcance)</summary>
     <ul>
-      <li>Placas con elemento lámina (shell). Hoy se usa la columna ancha, con la diferencia de ~3% indicada arriba.</li>
-      <li>Diafragma flexible o con aberturas grandes. Se asume diafragma rígido en todos los pisos.</li>
+      <li>Análisis no lineal (pushover) y tiempo-historia: la E.030 no los exige para edificios comunes y aquí no se incluyen.</li>
+      <li>Secciones agrietadas: se usan secciones brutas, como pide el art. 30.2.</li>
+      <li>El diafragma flexible usa un elemento por paño de losa: es exacto para paños rectangulares y aproximado en paños muy irregulares.</li>
     </ul>
   </details>
 
@@ -299,20 +305,20 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116j"></script>
-<script src="lib/OrbitControls.js?v=20261116j"></script>
-<script src="src/solver.js?v=20261116j"></script>
-<script src="src/e030.js?v=20261116j"></script>
-<script src="src/irreg.js?v=20261116j"></script>
-<script src="src/plano.js?v=20261116j"></script>
-<script src="src/dxf.js?v=20261116j"></script>
-<script src="src/cad.js?v=20261116j"></script>
-<script src="src/asistente.js?v=20261116j"></script>
-<script src="src/rediseno.js?v=20261116j"></script>
-<script src="src/fuerzas.js?v=20261116j"></script>
-<script src="src/diseno.js?v=20261116j"></script>
-<script src="src/ise.js?v=20261116j"></script>
-<script src="src/visor.js?v=20261116j"></script>
-<script src="src/app.js?v=20261116j"></script>
+<script src="lib/three.min.js?v=20261116k"></script>
+<script src="lib/OrbitControls.js?v=20261116k"></script>
+<script src="src/solver.js?v=20261116k"></script>
+<script src="src/e030.js?v=20261116k"></script>
+<script src="src/irreg.js?v=20261116k"></script>
+<script src="src/plano.js?v=20261116k"></script>
+<script src="src/dxf.js?v=20261116k"></script>
+<script src="src/cad.js?v=20261116k"></script>
+<script src="src/asistente.js?v=20261116k"></script>
+<script src="src/rediseno.js?v=20261116k"></script>
+<script src="src/fuerzas.js?v=20261116k"></script>
+<script src="src/diseno.js?v=20261116k"></script>
+<script src="src/ise.js?v=20261116k"></script>
+<script src="src/visor.js?v=20261116k"></script>
+<script src="src/app.js?v=20261116k"></script>
 </body>
 </html>
