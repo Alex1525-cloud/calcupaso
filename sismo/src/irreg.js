@@ -115,6 +115,12 @@
       const e = esquinas(model, k);
       if (e && e.ex > 0.2 * e.Lx && e.ey > 0.2 * e.Ly) { marcar("esquinas", `${L[k - 1].name}: esquina de ${e.ex.toFixed(1)} × ${e.ey.toFixed(1)} m (> 20% de ${e.Lx.toFixed(1)} × ${e.Ly.toFixed(1)} m)`); break; }
     }
+    // discontinuidad del diafragma: aberturas (vacíos, escaleras, paños sin losa) > 50% del área bruta
+    const ab = model.aberturas;
+    if (ab && ab.Abruta > 0) {
+      const f = ab.Aab / ab.Abruta, t = `Aberturas ${ab.Aab.toFixed(1)} m² de ${ab.Abruta.toFixed(1)} m² (${(100 * f).toFixed(0)}%)`;
+      if (f > 0.5) marcar("diafragma", t + " > 50% del área bruta."); else if (ab.Aab > 0) anotar("diafragma", t + " ≤ 50%.");
+    }
     // discontinuidad: columnas o placas que empiezan sobre el piso 1 sin nada debajo
     for (const c of model.columns) if (c.p1 > 1 && !model.columns.some(o => o.node === c.node && o.p1 <= c.p1 - 1 && c.p1 - 1 <= o.p2))
       marcar("discont", `Columna ${c.node} nace en el piso ${c.p1} sin columna debajo (revisar si toma > 10% del cortante).`);

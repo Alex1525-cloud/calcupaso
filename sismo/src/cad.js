@@ -7,7 +7,7 @@
   let svg, capaDib, capaTmp, cmd, estadoEl, cb;
   let vista = { x: 7.5, y: 7.5, s: 30 }; // centro (m) y escala (px/m)
   let herr = "sel", inicio = null, cursor = [0, 0], snap = null, orto = false, iman = true;
-  let sel = new Set(), deshacer = [], rehacer = [];
+  let sel = new Set(), deshacer = [], rehacer = [], marcas = [];
   const punteros = new Map(); let pinch = null, arrastre = null;
 
   const plano = () => cb.plano();
@@ -52,7 +52,16 @@
     for (let x = Math.ceil(x0 / paso) * paso; x <= x1; x += paso) { const [px] = aPx([x, 0]); el("line", { x1: px, y1: 0, x2: px, y2: H(), class: Math.abs(x % (paso * 5)) < 1e-6 ? "g2" : "g1" }); }
     for (let y = Math.ceil(y0 / paso) * paso; y <= y1; y += paso) { const [, py] = aPx([0, y]); el("line", { x1: 0, y1: py, x2: W(), y2: py, class: Math.abs(y % (paso * 5)) < 1e-6 ? "g2" : "g1" }); }
     // losas
-    for (const l of p.losas) el("polygon", { points: l.pts.map(aPx).map(q => q.join(",")).join(" "), class: "losa" + (sel.has(l.id) ? " sel" : ""), "data-id": l.id });
+    for (const l of p.losas) {
+      const pts = l.pts.map(aPx), tipo = l.tipo || "";
+      el("polygon", { points: pts.map(q => q.join(",")).join(" "), class: "losa" + (tipo ? " " + tipo : "") + (sel.has(l.id) ? " sel" : ""), "data-id": l.id });
+      if (tipo === "escalera" || tipo === "vacio") { // símbolo: escalones o aspa
+        const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+        if (tipo === "vacio") { el("line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "simb" }); el("line", { x1: x0, y1: y1, x2: x1, y2: y0, class: "simb" }); }
+        else { const n = Math.max(3, Math.min(14, Math.round((x1 - x0) / 10))); for (let i = 1; i < n; i++) { const x = x0 + (x1 - x0) * i / n; el("line", { x1: x, y1: y0, x2: x, y2: y1, class: "simb" }); }
+          el("path", { d: `M${x0 + 4},${(y0 + y1) / 2}L${x1 - 6},${(y0 + y1) / 2}M${x1 - 12},${(y0 + y1) / 2 - 5}L${x1 - 6},${(y0 + y1) / 2}L${x1 - 12},${(y0 + y1) / 2 + 5}`, class: "simb" }); }
+      }
+    }
     // ejes
     for (const e of p.ejes) {
       const a = aPx(e.a), b = aPx(e.b);
@@ -65,9 +74,23 @@
     for (const w of p.placas) { const a = aPx(w.a), b = aPx(w.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "placa" + (sel.has(w.id) ? " sel" : ""), "stroke-width": Math.max(3, w.t * vista.s) }); }
     // columnas
     for (const c of p.columnas) {
-      const [cx, cy] = aPx([c.x, c.y]), bw = Math.max(5, c.b * vista.s), hh = Math.max(5, c.h * vista.s);
-      el("rect", { x: cx - bw / 2, y: cy - hh / 2, width: bw, height: hh, class: "columna" + (sel.has(c.id) ? " sel" : ""), transform: `rotate(${-(c.ang || 0)} ${cx} ${cy})` });
+      const [cx, cy] = aPx([c.x, c.y]), bw = Math.max(5, c.b * vista.s), hh = Math.max(5, c.h * vista.s), cls = "columna" + (sel.has(c.id) ? " sel" : "");
+      if (c.forma === "circ") el("circle", { cx, cy, r: Math.max(3, c.b * vista.s / 2), class: cls });
+      else if (c.forma === "L" || c.forma === "T") {
+        const a = (c.ang || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+        const pts = Pl.contornoColumna(c).map(([u, v]) => aPx([c.x + u * co - v * si, c.y + u * si + v * co]));
+        el("polygon", { points: pts.map(q => q.join(",")).join(" "), class: cls });
+      } else el("rect", { x: cx - bw / 2, y: cy - hh / 2, width: bw, height: hh, class: cls, transform: `rotate(${-(c.ang || 0)} ${cx} ${cy})` });
     }
+    // centro de masa y de rigidez (del último análisis)
+    for (const m of marcas) {
+      const [mx, my] = aPx(m.q);
+      if (m.tipo === "cm") { el("circle", { cx: mx, cy: my, r: 7, class: "mk-cm" }); el("path", { d: `M${mx - 7},${my}h14M${mx},${my - 7}v14`, class: "mk-l" }); }
+      else el("path", { d: `M${mx},${my - 8}L${mx + 7},${my + 5}L${mx - 7},${my + 5}Z`, class: "mk-cr" });
+      const t = el("text", { x: mx + 10, y: my - 8, class: "mk-t" }); t.textContent = m.tipo.toUpperCase();
+    }
+    // pinzamientos del elemento seleccionado
+    for (const g of grips()) { const [gx, gy] = aPx(g.q); el("rect", { x: gx - 5, y: gy - 5, width: 10, height: 10, class: "grip" }); }
     // escala gráfica
     const L = [1, 2, 5, 10, 20, 50].find(s => s * vista.s >= 60) || 100;
     el("line", { x1: 14, y1: H() - 14, x2: 14 + L * vista.s, y2: H() - 14, class: "escala" });
@@ -94,7 +117,7 @@
   function estado() {
     const q = snap ? snap.q : cursor;
     const ayuda = {
-      sel: "Toca un elemento para verlo o editarlo (Mayús = varios). Supr borra. Arrastra para mover la vista.",
+      sel: "Toca para seleccionar (Mayús = varios). Arrastra un elemento para moverlo (lo unido se estira); arrastra los cuadritos para estirar un extremo. Flechas = 5 cm, @dx,dy = mover exacto. Arrastra el fondo para mover la vista.",
       col: "Toca donde va la columna, o escribe x,y y Enter.",
       viga: inicio ? "Siguiente punto: toca, o escribe @dx,dy · @L<ángulo · una distancia. Esc termina." : "Primer punto de la viga.",
       placa: inicio ? "Siguiente punto de la placa (o @dx,dy, @L<ángulo, distancia). Esc termina." : "Primer punto de la placa.",
@@ -143,6 +166,15 @@
     svg.setPointerCapture(e.pointerId);
     punteros.set(e.pointerId, rel(e));
     if (punteros.size === 2) { const [a, b] = [...punteros.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), s: vista.s }; arrastre = null; return; }
+    if (herr === "sel" && e.button === 0) { // como en Revit: agarrar un elemento (o un pinzamiento) y moverlo
+      const m = rel(e), g = buscarGrip(...m), id = g ? null : buscar(...m), o = id && objeto(id);
+      if (g || (o && o.k !== "losas")) {
+        if (id && !sel.has(id) && !e.shiftKey) { sel.clear(); sel.add(id); cb.seleccion([...sel]); }
+        const q0 = aM(...m);
+        arrastre = { tipo: g ? "grip" : "mover", grip: g, id, inicio: m, q0, base: JSON.stringify(plano()), ref: g ? g.q : puntoRef(o, q0), movio: false, e };
+        return;
+      }
+    }
     if (e.button === 1 || (herr === "sel" && e.button === 0) || e.pointerType === "touch") arrastre = { inicio: rel(e), vista: Object.assign({}, vista), movio: false, e };
     else if (e.button === 0) clic(rel(e), e);
   }
@@ -152,6 +184,11 @@
     if (pinch && punteros.size === 2) {
       const [a, b] = [...punteros.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
       const f = (pinch.s * d / pinch.d) / vista.s; zoomEn((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, f); return;
+    }
+    if (arrastre && arrastre.tipo) {
+      if (Math.hypot(m[0] - arrastre.inicio[0], m[1] - arrastre.inicio[1]) > 4) arrastre.movio = true;
+      if (!arrastre.movio) return;
+      arrastrar(aM(...m)); return;
     }
     if (arrastre) {
       const dx = m[0] - arrastre.inicio[0], dy = m[1] - arrastre.inicio[1];
@@ -163,18 +200,29 @@
   function arriba(e) {
     punteros.delete(e.pointerId);
     if (punteros.size < 2) pinch = null;
+    if (arrastre && arrastre.tipo) {
+      const a = arrastre; arrastre = null; capaTmp.innerHTML = "";
+      if (a.movio) { marcas = []; deshacer.push(a.base); if (deshacer.length > 100) deshacer.shift(); rehacer = []; C.dibujar(); cb.cambio(); cb.seleccion([...sel]); }
+      else { if (!a.e.shiftKey) sel.clear(); if (a.id) sel.add(a.id); cb.seleccion([...sel]); C.dibujar(); }
+      return;
+    }
     if (arrastre && !arrastre.movio && e.button !== 1) { const a = arrastre; arrastre = null; cursor = aM(...a.inicio); snap = herr === "sel" || herr === "borrar" ? null : iman_(cursor); clic(a.inicio, a.e); return; }
     arrastre = null;
   }
   function teclas(e) {
     const t = e.target, escribiendo = t && (t.tagName === "INPUT" || t.tagName === "SELECT" || t.tagName === "TEXTAREA") && t !== cmd;
-    if (escribiendo || !svg || svg.closest(".hidden") || !svg.offsetParent) return;
+    if (escribiendo || !svg || svg.closest(".hidden") || !svg.getClientRects().length || document.querySelector("dialog[open]")) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); C.deshacer(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); C.rehacer(); return; }
     if (e.key === "Escape") { cancelar(); return; }
     if (e.key === "F8") { e.preventDefault(); orto = !orto; temporal(); return; }
     if (e.key === "F3") { e.preventDefault(); iman = !iman; temporal(); return; }
     if ((e.key === "Delete" || e.key === "Supr") && t !== cmd) { borrarSel(); return; }
+    if (t !== cmd && sel.size && herr === "sel" && e.key.startsWith("Arrow")) { // empujar la selección 5 cm (Mayús: 50 cm)
+      e.preventDefault(); const st = e.shiftKey ? 0.5 : 0.05;
+      const d = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, st], ArrowDown: [0, -st] }[e.key];
+      C.moverSeleccion(d); return;
+    }
     // como en AutoCAD: lo que se escribe va a la línea de comandos
     if (t !== cmd && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { cmd.focus(); }
   }
@@ -183,10 +231,11 @@
   function guardarDeshacer() { deshacer.push(JSON.stringify(plano())); if (deshacer.length > 100) deshacer.shift(); rehacer = []; }
   C.deshacer = () => { if (!deshacer.length) return; rehacer.push(JSON.stringify(plano())); cb.reemplazar(JSON.parse(deshacer.pop())); sel.clear(); C.dibujar(); cb.cambio(); };
   C.rehacer = () => { if (!rehacer.length) return; deshacer.push(JSON.stringify(plano())); cb.reemplazar(JSON.parse(rehacer.pop())); C.dibujar(); cb.cambio(); };
-  C.cambiar = (fn) => { guardarDeshacer(); fn(plano()); C.dibujar(); cb.cambio(); };
+  C.cambiar = (fn) => { guardarDeshacer(); fn(plano()); marcas = []; C.dibujar(); cb.cambio(); };
   function cancelar() { inicio = null; if (herr === "sel") { sel.clear(); cb.seleccion([]); } C.dibujar(); }
   C.herramienta = function (h) { herr = h; inicio = null; snap = null; cb.herramienta(h); C.dibujar(); };
   C.seleccion = () => [...sel];
+  C.marcas = (m) => { marcas = m || []; C.dibujar(); };
   C.limpiarSeleccion = () => { sel.clear(); C.dibujar(); };
   C.orto = (v) => { orto = v; temporal(); }; C.iman = (v) => { iman = v; temporal(); };
 
@@ -194,7 +243,7 @@
     const pr = cb.props(), p = plano();
     if (herr === "col") {
       if (p.columnas.some(c => Pl.dist([c.x, c.y], q) < 0.02)) { cb.aviso("Ya hay una columna ahí."); return; }
-      C.cambiar(p => p.columnas.push({ id: Pl.nuevoId("c"), x: q[0], y: q[1], b: pr.colB, h: pr.colH, ang: pr.colAng || 0 }));
+      C.cambiar(p => p.columnas.push({ id: Pl.nuevoId("c"), x: q[0], y: q[1], b: pr.colB, h: pr.colForma === "circ" ? pr.colB : pr.colH, ang: pr.colAng || 0, ...(pr.colForma && pr.colForma !== "rect" ? { forma: pr.colForma, t: pr.colT } : {}) }));
     } else if (herr === "viga" || herr === "placa" || herr === "eje") {
       if (!inicio) { inicio = q.slice(); temporal(); return; }
       if (Pl.dist(inicio, q) < 0.05) return;
@@ -233,6 +282,72 @@
   function borrarSel() { if (!sel.size) return; const ids = new Set(sel); C.cambiar(p => quitar(p, ids)); sel.clear(); cb.seleccion([]); }
   C.borrarSel = borrarSel;
 
+  // ------------------------------------------------------------ mover (tipo Revit)
+  const TOLM = 0.01;
+  function objeto(id) { const p = plano(); for (const k of ["columnas", "vigas", "placas", "ejes", "losas"]) { const o = p[k].find(x => x.id === id); if (o) return { k, o }; } return null; }
+  function puntoRef(ob, q) { // punto del elemento que se "agarra": centro de la columna o el extremo más cercano
+    if (ob.k === "columnas") return [ob.o.x, ob.o.y];
+    const { a, b } = ob.o; return Pl.dist(a, q) <= Pl.dist(b, q) ? a.slice() : b.slice();
+  }
+  /* Desplaza los elementos ids en d. Lo que está unido (mismo punto) se estira con ellos: vigas, placas y losas
+     siguen a sus columnas. Un eje se mueve solo en perpendicular y arrastra todo lo que está sobre él. */
+  function desplazar(p, ids, d) {
+    const pares = []; // [punto viejo, desplazamiento]
+    const mueveEje = new Map();
+    for (const id of ids) {
+      for (const k of ["columnas", "vigas", "placas", "ejes"]) {
+        const o = p[k].find(x => x.id === id); if (!o) continue;
+        if (k === "columnas") pares.push([[o.x, o.y], d]);
+        else if (k === "ejes") {
+          const L = Pl.dist(o.a, o.b) || 1, n = [-(o.b[1] - o.a[1]) / L, (o.b[0] - o.a[0]) / L], s = d[0] * n[0] + d[1] * n[1], dn = [n[0] * s, n[1] * s];
+          mueveEje.set(o, dn);
+          const sobre = (q) => { const r = Pl.proyeccion(q, o.a, o.b); return r.d < TOLM && r.t > -0.05 && r.t < 1.05; };
+          p.columnas.forEach(c => { if (sobre([c.x, c.y])) pares.push([[c.x, c.y], dn]); });
+          [...p.vigas, ...p.placas].forEach(v => [v.a, v.b].forEach(q => { if (sobre(q)) pares.push([q.slice(), dn]); }));
+          p.losas.forEach(l => l.pts.forEach(q => { if (sobre(q)) pares.push([q.slice(), dn]); }));
+        } else pares.push([o.a.slice(), d], [o.b.slice(), d]);
+      }
+    }
+    const nuevo = (q) => { for (const [v, dd] of pares) if (Pl.dist(v, q) < TOLM) return [+(q[0] + dd[0]).toFixed(4), +(q[1] + dd[1]).toFixed(4)]; return null; };
+    p.columnas.forEach(c => { const q = nuevo([c.x, c.y]); if (q) [c.x, c.y] = q; });
+    [...p.vigas, ...p.placas].forEach(v => { const a = nuevo(v.a), b = nuevo(v.b); if (a) v.a = a; if (b) v.b = b; });
+    p.losas.forEach(l => { l.pts = l.pts.map(q => nuevo(q) || q); });
+    mueveEje.forEach((dn, e) => { e.a = [+(e.a[0] + dn[0]).toFixed(4), +(e.a[1] + dn[1]).toFixed(4)]; e.b = [+(e.b[0] + dn[0]).toFixed(4), +(e.b[1] + dn[1]).toFixed(4)]; });
+  }
+  C.moverSeleccion = (d) => { if (!sel.size) return; const ids = [...sel]; C.cambiar(p => desplazar(p, ids, d)); cb.seleccion([...sel]); };
+  C.moverIds = (ids, d) => C.cambiar(p => desplazar(p, ids, d));
+  // pinzamientos: extremos de la viga, placa o eje seleccionado (estiran solo ese extremo)
+  function grips() {
+    if (sel.size !== 1) return [];
+    const ob = objeto([...sel][0]); if (!ob || ob.k === "columnas" || ob.k === "losas") return [];
+    return [{ id: ob.o.id, k: ob.k, extremo: "a", q: ob.o.a.slice() }, { id: ob.o.id, k: ob.k, extremo: "b", q: ob.o.b.slice() }];
+  }
+  function buscarGrip(px, py) { for (const g of grips()) { const [gx, gy] = aPx(g.q); if (Math.hypot(gx - px, gy - py) < 10) return g; } return null; }
+  function arrastrar(q) {
+    const a = arrastre, p = JSON.parse(a.base);
+    // ajuste: imán a puntos que no se mueven, si no a la grilla de 5 cm; orto respecto al punto agarrado
+    let r = [a.ref[0] + q[0] - a.q0[0], a.ref[1] + q[1] - a.q0[1]];
+    if (orto) { const dx = r[0] - a.ref[0], dy = r[1] - a.ref[1]; r = Math.abs(dx) >= Math.abs(dy) ? [r[0], a.ref[1]] : [a.ref[0], r[1]]; }
+    let tipoSnap = null;
+    if (iman) {
+      const tol = 12 / vista.s; let best = null;
+      const fijos = puntosClave(p).filter(k => Pl.dist(k, a.ref) > TOLM);
+      for (const k of fijos) { const dd = Pl.dist(k, r); if (dd < tol && (!best || dd < best.d)) best = { q: k, d: dd }; }
+      if (best) { r = best.q.slice(); tipoSnap = "punto"; }
+      else { const dx = Math.round((r[0] - a.ref[0]) / 0.05) * 0.05, dy = Math.round((r[1] - a.ref[1]) / 0.05) * 0.05; r = [a.ref[0] + dx, a.ref[1] + dy]; }
+    }
+    const d = [+(r[0] - a.ref[0]).toFixed(4), +(r[1] - a.ref[1]).toFixed(4)];
+    if (a.tipo === "grip") {
+      const o = p[a.grip.k].find(x => x.id === a.grip.id);
+      if (o) o[a.grip.extremo] = [+(a.grip.q[0] + d[0]).toFixed(4), +(a.grip.q[1] + d[1]).toFixed(4)];
+    } else desplazar(p, [...sel], d);
+    cb.reemplazar(p); C.dibujar();
+    const [px, py] = aPx(r);
+    if (tipoSnap) el("rect", { x: px - 6, y: py - 6, width: 12, height: 12, class: "iman" }, capaTmp);
+    const t = el("text", { x: px + 12, y: py - 12, class: "cota" }, capaTmp);
+    t.textContent = a.tipo === "grip" ? `L = ${fmt(Pl.dist(...["a", "b"].map(k => p[a.grip.k].find(x => x.id === a.grip.id)[k])))} m` : `Δx ${fmt(d[0])} · Δy ${fmt(d[1])} m`;
+  }
+
   // ------------------------------------------------------------ línea de comandos (estilo AutoCAD)
   function comando(t) {
     if (!t) { if (inicio) cancelar(); return; }
@@ -255,7 +370,12 @@
       const n = Math.hypot(dx, dy) || 1; q = [base[0] + +m[1] * dx / n, base[1] + +m[1] * dy / n];
     }
     if (!q) { cb.aviso(`No entendí «${t}». Prueba: C (columna), V (viga), P (placa), L (losa), E (eje), x,y · @dx,dy · @L<ángulo.`); return; }
-    if (herr === "sel" || herr === "borrar") { cb.aviso("Primero elige una herramienta (C, V, P, L o E)."); return; }
+    if (herr === "sel" && sel.size && /^@/.test(t)) { // mover la selección: @dx,dy o @L<ángulo
+      const m2 = t.match(/^@\s*(-?[\d.]+)\s*<\s*(-?[\d.]+)$/), m3 = t.match(/^@\s*(-?[\d.]+)\s*[,;]\s*(-?[\d.]+)$/);
+      const d = m2 ? [+m2[1] * Math.cos(m2[2] * Math.PI / 180), +m2[1] * Math.sin(m2[2] * Math.PI / 180)] : m3 ? [+m3[1], +m3[2]] : null;
+      if (d) { C.moverSeleccion([+d[0].toFixed(4), +d[1].toFixed(4)]); cb.aviso(`Selección movida ${fmt(d[0])}, ${fmt(d[1])} m.`); return; }
+    }
+    if (herr === "sel" || herr === "borrar") { cb.aviso("Primero elige una herramienta (C, V, P, L o E), o selecciona algo y escribe @dx,dy para moverlo."); return; }
     poner([+q[0].toFixed(4), +q[1].toFixed(4)]);
   }
 
