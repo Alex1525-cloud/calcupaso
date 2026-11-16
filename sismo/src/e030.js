@@ -172,6 +172,13 @@
     }));
     res.derivaMax = { X: Math.max(...res.derivas.map(r => r.inX)), Y: Math.max(...res.derivas.map(r => r.inY)) };
     res.cumple = res.derivaMax.X <= q.derivaLim && res.derivaMax.Y <= q.derivaLim;
+    // índice de estabilidad para el efecto P-Δ: Q = N·Δ / (V·h·R) con la deriva inelástica (E.030, efectos de segundo orden)
+    res.estabilidad = levels.map((L, k) => {
+      let Nk = 0; for (let j = k; j < N; j++) Nk += levels[j].W;
+      const QX = Nk * res.derivas[k].inX / (dirs[0].shearDin[k] * dirs[0].factorEscala * q.Rx), QY = Nk * res.derivas[k].inY / (dirs[1].shearDin[k] * dirs[1].factorEscala * q.Ry);
+      return { piso: L.name, N: Nk, QX, QY };
+    });
+    res.Qmax = Math.max(...res.estabilidad.map(e => Math.max(e.QX, e.QY)));
     return res;
   }
 

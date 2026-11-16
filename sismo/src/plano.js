@@ -227,7 +227,7 @@
     const stories = Array.from({ length: n }, (_, i) => ({ name: "Piso" + (i + 1), h: i ? pisos.h : pisos.h1 }));
     return {
       model: {
-        stories, E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
+        stories, fc, E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
         loads: { cm: cargas.cm / 1000, cmRoof: cargas.cmRoof / 1000, cv: cargas.cv / 1000, cvRoof: cargas.cvRoof / 1000 },
         aberturas: { Abruta, Aab },
         massFactors: { cm: 1, cv: typeof catC === "number" ? catC : (catC ? 0.25 : 0.5), cvRoof: 0.25 },

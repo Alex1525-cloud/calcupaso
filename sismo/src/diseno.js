@@ -102,7 +102,7 @@
   }
   /* Curva de diseño (φPn, φMn) para flexión según la coordenada `eje` (0: y local, 1: z local), con compresión en el lado `signo`.
      barras: [[y, z, As]] en cm. */
-  function curva(fib, barras, eje, signo, fc, fy, Ag, espiral) {
+  function curva(fib, barras, eje, signo, fc, fy, Ag, espiral, nominal) {
     const Es = 2e6, ecu = 0.003, b1 = beta1(fc), pc = (q) => signo * q[eje];
     const smax = Math.max(...fib.map(pc)), smin = Math.min(...fib.map(pc)), D = smax - smin;
     const Ast = barras.reduce((a, x) => a + x[2], 0), P0 = 0.85 * fc * (Ag - Ast) + fy * Ast;
@@ -123,6 +123,7 @@
       let phi = phiC;
       const lim = 0.1 * fc * Ag;
       if (P < lim / phiC) phi = P <= 0 ? 0.9 : 0.9 - (0.9 - phiC) * phiC * P / lim;
+      if (nominal) phi = 1;
       pts.push([phi * P, phi * Math.abs(M)]);
     }
     pts.unshift([-0.9 * fy * Ast, 0]);
@@ -321,7 +322,7 @@
     return out;
   }
 
-  const Diseno = { disenar, viga, columna, placa, zapata, curva, seccionLocal, barrasContorno, asFlexion, elegirBarras, BARRAS };
+  const Diseno = { disenar, phiMn, fibras, viga, columna, placa, zapata, curva, seccionLocal, barrasContorno, asFlexion, elegirBarras, BARRAS };
   root.Diseno = Diseno;
   if (typeof module !== "undefined") module.exports = Diseno;
 })(typeof window !== "undefined" ? window : globalThis);
