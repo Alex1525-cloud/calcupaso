@@ -74,7 +74,7 @@
       <h3>Planta</h3>
       <p class="hint">Dibuja en la pestaña <b>Planta 2D</b> como en AutoCAD (todos los pisos usan esta planta), o trae tu plano.</p>
       <div class="btns">
-        <button id="btnDxf" class="secondary">Importar plano DXF</button>
+        <button id="btnDxf" class="secondary">Importar plano DWG / DXF</button>
         <button id="btnLosas" class="ghost">Losas automáticas</button>
       </div>
       <details class="rapido">
@@ -187,10 +187,10 @@
 <div id="informe" class="informe"></div>
 
 <dialog id="dlgDxf" class="dlg">
-  <h3>Importar plano DXF</h3>
-  <p class="hint">En AutoCAD: <b>Guardar como → DXF</b> (cualquier versión). El DWG es un formato cerrado; el DXF guarda las mismas capas y líneas. Se lee en tu navegador, el archivo no se sube a ningún lado.</p>
+  <h3>Importar plano DWG o DXF</h3>
+  <p class="hint">Sube el <b>DWG</b> de AutoCAD o Civil 3D tal cual, o un <b>DXF</b>. Se lee en tu navegador: el archivo no se sube a ningún lado. Si algún DWG no abre, en AutoCAD usa <b>Guardar como → DXF</b> y súbelo así.</p>
   <div class="btns">
-    <label class="ghost file">Elegir archivo .dxf<input id="fileDxf" type="file" accept=".dxf"></label>
+    <label class="ghost file">Elegir archivo .dwg o .dxf<input id="fileDxf" type="file" accept=".dwg,.dxf"></label>
     <button id="btnDxfEjemplo" class="ghost">Usar un DXF de ejemplo</button>
   </div>
   <div id="dxfInfo"></div>

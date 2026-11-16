@@ -6,6 +6,7 @@ Prototipo educativo de un programa tipo ETABS, pensado para estudiantes: dibujas
 - **Norma** (`src/e030.js`, `src/irreg.js`): espectro E.030-2026 (con la opción 2018), cortante estático y dinámico, escalamiento, derivas con excentricidad accidental, irregularidades (Tablas 11 y 12), sistema estructural según el reparto del cortante y restricciones (Tabla 13).
 - **Asistente** (`src/asistente.js`): predimensionamiento, sobrecargas E.020 según el uso, combinaciones E.060 y recomendaciones después del análisis.
 - **Editor de planta tipo AutoCAD** (`src/cad.js`, `src/plano.js`): columnas, vigas, placas, losas y ejes con imán, orto, coordenadas `x,y`, `@dx,dy` y `@L<ángulo`, deshacer y losas automáticas. Cada elemento tiene su propia sección.
+- **Importar DWG** (`dwg/entrada.js` → `lib/dwg.js`): lee el DWG en el navegador con [acad-ts](https://github.com/node-projects/acad-ts) 3.7.0 (licencia MIT, `lib/dwg.LICENSE.txt`), empaquetado con `sh dwg/construir.sh`. Se descarga solo al abrir un DWG.
 - **Importar DXF** (`src/dxf.js`): lee capas, líneas, polilíneas y bloques; eliges qué capa es de columnas, placas o ejes, y crea las vigas sobre los ejes y las losas en los paños cerrados.
 - **Visor 3D** (`src/visor.js`, Three.js r128 en `lib/`): modos animados y derivas por piso con colores.
 

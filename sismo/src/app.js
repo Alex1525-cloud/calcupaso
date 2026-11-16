@@ -162,13 +162,30 @@
   let dxfLeido = null;
   $("btnDxf").addEventListener("click", () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); });
   $("btnDxfCancelar").addEventListener("click", () => $("dlgDxf").close());
-  $("fileDxf").addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) prepararDxf(await f.text(), f.name); e.target.value = ""; });
+  let cargaDwg = null;
+  function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
+    if (window.DWGLector) return Promise.resolve(window.DWGLector);
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    return cargaDwg;
+  }
+  $("fileDxf").addEventListener("change", async (e) => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    const buf = await f.arrayBuffer(), cab = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(6, buf.byteLength)));
+    if (/^AC1\d\d\d/.test(cab)) {
+      $("dxfInfo").innerHTML = `<p>Leyendo el DWG ${f.name}…</p>`;
+      try {
+        const L = await lectorDwg();
+        await new Promise(r => setTimeout(r, 30));
+        const d = L.leer(buf);
+        prepararDxf(d, f.name + (d.version ? ` (formato ${d.version})` : ""));
+      } catch (err) { console.error(err); $("dxfInfo").innerHTML = `<div class="msg bad">No pude leer este DWG: puede estar dañado o usar algo que el lector aún no soporta. En AutoCAD usa <b>Guardar como → DXF</b> y súbelo así.</div>`; $("btnDxfImportar").disabled = true; }
+    } else prepararDxf(new TextDecoder().decode(buf), f.name);
+  });
   $("btnDxfEjemplo").addEventListener("click", () => prepararDxf(DXF.ejemplo(), "ejemplo.dxf"));
-  function prepararDxf(txt, nombre) {
+  function prepararDxf(entrada, nombre) {
     try {
-      if (/^AC10\d\d/.test(txt.slice(0, 6))) throw new Error("Ese archivo es un DWG. En AutoCAD usa Guardar como → DXF.");
-      const d = DXF.leer(txt);
-      if (!d.ent.length) throw new Error("No encontré líneas ni polilíneas en el archivo.");
+      const d = typeof entrada === "string" ? DXF.leer(entrada) : entrada;
+      if (!d.ent.length) throw new Error("No encontré líneas, polilíneas ni bloques en el espacio modelo del archivo.");
       dxfLeido = d;
       const esc = DXF.escalaUnidades(d.unidades) || DXF.escalaProbable(d);
       const filas = Object.entries(d.capas).sort((a, b) => b[1] - a[1]).map(([c, n]) => `<tr><td>${c.replace(/</g, "&lt;")}</td><td>${n}</td><td><select data-capa="${encodeURIComponent(c)}">
