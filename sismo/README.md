@@ -13,3 +13,6 @@ Prototipo educativo de un programa tipo ETABS, pensado para estudiantes: dibujas
 No necesita servidor: abre `index.html` o publícalo en GitHub Pages. Validación contra ETABS en [VALIDACION.md](VALIDACION.md). Pruebas: `node test/validacion.js`.
 
 > Prototipo educativo: no reemplaza el criterio ni la firma de un ingeniero.
+
+## Al publicar cambios
+GitHub Pages deja los archivos en caché del navegador unos minutos. En `index.html` cada script y la hoja de estilos llevan `?v=AAAAMMDDx` (y `lib/dwg.js` en `src/app.js`): cámbialo en cada publicación para que nadie quede con un `index.html` nuevo y un `app.js` viejo.
