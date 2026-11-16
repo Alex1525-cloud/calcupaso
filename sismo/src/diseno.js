@@ -246,6 +246,41 @@
     return res;
   }
 
+  // ------------------------------------------------------------ muros de albañilería confinada (E.070)
+  function muroAlb(o, s, p, hPiso) {
+    const L = s.b * 100, t = s.h * 100, h = hPiso * 100, fm = s.fm || 65, vm = s.vm || 8.1;
+    const Pm = (o.D.P[0] + o.L.P[0]) * 1000, Pg = (o.D.P[0] + 0.25 * o.L.P[0]) * 1000;
+    const sigma = Pm / (L * t), sigAdm = Math.min(0.2 * fm * (1 - (h / (35 * t)) ** 2), 0.15 * fm);
+    const Vsev = Math.max(o.SX.V2[0], o.SY.V2[0]) * 1000, Msev = Math.max(o.SX.M3[0], o.SY.M3[0]) * 1e5;
+    const Ve = Vsev / 2, Me = Msev / 2; // sismo moderado = la mitad del severo (R = 3)
+    const alfa = Me > 0 ? Math.min(1, Math.max(1 / 3, Ve * L / Me)) : 1;
+    const Vm = 0.5 * vm * alfa * t * L + 0.23 * Math.max(0, Pg);
+    const espesor = t >= h / 20 - 1e-6, axial = sigma <= sigAdm, fisura = Ve <= 0.55 * Vm;
+    const notas = [];
+    if (!espesor) notas.push(`Espesor menor que h/20 = ${(h / 20).toFixed(1)} cm.`);
+    if (!axial) notas.push(`Esfuerzo axial ${sigma.toFixed(1)} kg/cm² > ${sigAdm.toFixed(1)} kg/cm²: usa un ladrillo de mayor f'm o un muro más grueso.`);
+    if (!fisura) notas.push("Se fisura con el sismo moderado (Ve > 0,55 Vm): agrega muros en esa dirección o aumenta su longitud.");
+    return { tipo: "albañilería", Lw: s.b, t: s.h, sigma, sigAdm, Ve: Ve / 1000, Vm: Vm / 1000, Vsev: Vsev / 1000, alfa, falla: !(espesor && axial && fisura), ok: espesor && axial && fisura,
+      txtConf: `Columnas de confinamiento ${s.h.toFixed(2)} × 0.20 m con 4 Ø 3/8" y □ Ø 1/4": 1 @ 5, 4 @ 10, resto @ 25 cm en cada extremo y a no más de 2h; viga solera ${s.h.toFixed(2)} × 0.20 m con 4 Ø 3/8" (mínimos usuales)`,
+      nota: notas.join(" ") };
+  }
+
+  // ------------------------------------------------------------ cimiento corrido de concreto ciclópeo (muros de albañilería)
+  function cimientoCorrido(rc, Lw, t, p) {
+    const { qadm, Df } = p, gm = 2.0, sc = 0.2, qa = qadm * 10, qn = qa - gm * Df - sc;
+    if (qn <= 0) return { falla: true, nota: "La capacidad portante es muy baja para ese desplante." };
+    const Ps = rc.D + rc.L, M = Math.abs(rc.MD[1] + rc.ML[1]);
+    const casos = [{ P: Ps, M, q: qn }];
+    for (const sx of ["SX", "SY"]) casos.push({ P: Ps + 0.8 * rc[sx], M: M + 0.8 * rc["M" + sx][1], q: 1.3 * qa - gm * Df - sc });
+    let B = Math.max(0.40, ru(Ps / Lw / qn, 0.05));
+    const qmax = (c) => c.P / (B * Lw) + 6 * c.M / (B * Lw * Lw);
+    for (let it = 0; it < 60 && casos.some(c => qmax(c) > c.q); it++) B = +(B + 0.05).toFixed(2);
+    const hc = Math.max(0.6, ru(Df - 0.1, 0.05), ru(2 * (B - t) / 2, 0.05)); // vuelo ≤ h/2 para concreto simple
+    return { Ly: Lw, Lz: B, hz: hc, Df, Ps, qn, ok: true, falla: false, ciclopeo: true,
+      ay: { txt: "Concreto ciclópeo 1:10 + 30% de piedra grande" }, az: { txt: `Sobrecimiento ${t.toFixed(2)} m de ancho, 1:8 + 25% de piedra mediana` },
+      nota: casos.some(c => c.P / (B * Lw) - 6 * c.M / (B * Lw * Lw) < 0) ? "Con sismo un extremo tiende a levantarse; como el cimiento corrido es continuo con el de los muros vecinos, revisa que la sobrecimentación y las vigas soleras los unan." : "" };
+  }
+
   // ------------------------------------------------------------ zapatas aisladas
   /* r: reacción {D, L, SX, SY, MD:[M2,M3], ML, MSX, MSY} en t y t·m; dim: [lado en y local, lado en z local] del elemento (m). */
   function zapata(rc, dim, p) {
@@ -289,7 +324,7 @@
 
   /* Diseño completo. fz = Fuerzas.calcular(r). p = {fc, fy, qadm, Df, porticos} */
   function disenar(r, fz, p) {
-    const B = r.B, sec = B.sec, out = { vigas: [], columnas: [], placas: [], zapatas: [] };
+    const B = r.B, sec = B.sec, out = { vigas: [], columnas: [], placas: [], muros: [], zapatas: [] };
     const R = Math.max(r.q.Rx, r.q.Ry), hTot = B.z[B.N];
     const piso = (e) => B.levels[e.k - 1].name;
     const xy = (e) => { const a = B.pts.get(e.a), b = B.pts.get(e.b); return [a, b]; };
@@ -298,7 +333,11 @@
       const e = o.e, s = sec[e.sec];
       try {
         if (e.type === "beam") { const [a, b] = xy(e); out.vigas.push(Object.assign(viga(o, s, p), { piso: piso(e), k: e.k, donde: etq(a, b) })); }
-        else if (e.wall != null) { const [x1, y1] = B.model.nodes[e.ends[0]], [x2, y2] = B.model.nodes[e.ends[1]]; out.placas.push(Object.assign(placa(o, s, p, hTot - B.z[e.k - 1], R), { piso: piso(e), k: e.k, donde: etq({ x: x1, y: y1 }, { x: x2, y: y2 }) })); }
+        else if (e.wall != null) {
+          const [x1, y1] = B.model.nodes[e.ends[0]], [x2, y2] = B.model.nodes[e.ends[1]], donde = etq({ x: x1, y: y1 }, { x: x2, y: y2 });
+          if (s.mat === "alb") out.muros.push(Object.assign(muroAlb(o, s, p, B.levels[e.k - 1].h), { piso: piso(e), k: e.k, donde, ang: e.ang || 0 }));
+          else out.placas.push(Object.assign(placa(o, s, p, hTot - B.z[e.k - 1], R), { piso: piso(e), k: e.k, donde }));
+        }
         else { const [a] = xy(e); out.columnas.push(Object.assign(columna(o, s, p), { piso: piso(e), k: e.k, donde: etq(a), b: s.b, h: s.h, forma: s.forma || "rect" })); }
       } catch (err) { console.error(err); }
     }
@@ -306,9 +345,16 @@
     for (const [id, rc] of fz.reacc) {
       const e = rc.e, s = sec[e.sec], a = B.pts.get(e.a);
       const dim = s.forma === "circ" ? [s.b, s.b] : [s.b, s.h];
-      const z = zapata(rc, dim, p);
+      const z = s.mat === "alb" ? cimientoCorrido(rc, s.b, s.h, p) : zapata(rc, dim, p);
       const centro = e.wall != null ? (() => { const [x1, y1] = B.model.nodes[e.ends[0]], [x2, y2] = B.model.nodes[e.ends[1]]; return [(x1 + x2) / 2, (y1 + y2) / 2]; })() : [a.x, a.y];
       out.zapatas.push(Object.assign(z, { id, placa: e.wall != null, donde: `(${centro[0].toFixed(1)}, ${centro[1].toFixed(1)})`, centro, ang: e.ang || 0, dim, D: rc.D, L: rc.L }));
+    }
+    // resistencia global de la albañilería: Σ Vm de cada piso ≥ cortante del sismo severo (E.070)
+    out.albGlobal = [];
+    if (out.muros.length) for (let k = 1; k <= B.N; k++) for (const D of r.dirs.filter(D => (D.d ? r.q.sistemaY : r.q.sistemaX) === "ALBAÑILERÍA")) { // solo en la dirección declarada de albañilería
+      const ms = out.muros.filter(m => m.k === k), Vm = ms.reduce((a, m) => a + m.Vm * Math.abs(D.d ? Math.sin(m.ang) : Math.cos(m.ang)), 0);
+      const VE = D.shearDin[k - 1] * D.factorEscala;
+      out.albGlobal.push({ piso: B.levels[k - 1].name, dir: D.d ? "Y" : "X", Vm, VE, ok: Vm >= VE });
     }
     // traslapes entre zapatas vecinas (comparación de rectángulos girados aproximada con círculos inscritos/ejes)
     const zs = out.zapatas;
@@ -322,7 +368,7 @@
     return out;
   }
 
-  const Diseno = { disenar, phiMn, fibras, viga, columna, placa, zapata, curva, seccionLocal, barrasContorno, asFlexion, elegirBarras, BARRAS };
+  const Diseno = { disenar, muroAlb, cimientoCorrido, phiMn, fibras, viga, columna, placa, zapata, curva, seccionLocal, barrasContorno, asFlexion, elegirBarras, BARRAS };
   root.Diseno = Diseno;
   if (typeof module !== "undefined") module.exports = Diseno;
 })(typeof window !== "undefined" ? window : globalThis);

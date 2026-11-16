@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116h">
+<link rel="stylesheet" href="src/app.css?v=20261116i">
 </head>
 <body>
 <header class="top">
@@ -63,8 +63,8 @@
         <label>Categoría <select id="categoria"><option>A1</option><option>A2</option><option>B</option><option selected>C</option></select></label>
       </div>
       <div class="row">
-        <label>Sistema en X <select id="sistemaX"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option></select></label>
-        <label>Sistema en Y <select id="sistemaY"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option></select></label>
+        <label>Sistema en X <select id="sistemaX"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option><option>ALBAÑILERÍA</option></select></label>
+        <label>Sistema en Y <select id="sistemaY"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option><option>ALBAÑILERÍA</option></select></label>
       </div>
       <label class="check"><input id="dir30" type="checkbox"> Sismo 100% + 30% en las derivas (arts. 33.3 y 43)</label>
       <label class="check"><input id="pDelta" type="checkbox"> Incluir el efecto P-Δ en el análisis (rigidez geométrica con el peso sísmico)</label>
@@ -125,6 +125,11 @@
         <label>Viga h (m) <input id="vigH" type="number" step="0.05"></label>
         <label>Placa t (m) <input id="placaT" type="number" step="0.05"></label>
       </div>
+      <div class="row3">
+        <label>Placas/muros nuevos de <select id="placaMat"><option value="conc">Concreto armado</option><option value="alb">Albañilería confinada</option></select></label>
+        <label>f'm albañilería (kg/cm²) <input id="fm" type="number" step="5" title="E.070: King Kong industrial 65, sólido artesanal 35"></label>
+        <label>v'm (kg/cm²) <input id="vm" type="number" step="0.1"></label>
+      </div>
       <div class="btns"><button id="btnTodasCol" class="ghost small">Aplicar a todas las columnas</button><button id="btnTodasVig" class="ghost small">… a todas las vigas</button><button id="btnTodasPla" class="ghost small">… a todas las placas</button></div>
       <h3>Losa</h3>
       <div class="row">
@@ -161,6 +166,7 @@
         <label>Profundidad de desplante Df (m) <input id="Df" type="number" step="0.1"></label>
       </div>
       <div class="hint">Con estos datos y las reacciones del análisis se dimensionan zapatas y cimientos corridos (en los resultados).</div>
+      <label class="check"><input id="ise" type="checkbox"> Interacción suelo-estructura: resortes en la base según el suelo (Gazetas) en vez de base empotrada</label>
     </section>
 
     <div id="revision" class="tips"></div>
@@ -257,6 +263,8 @@
       <li><b>P-Δ:</b> se calcula el índice de estabilidad Q = N·Δ/(V·h·R) en cada piso; si pasa de 0,10 se recomienda activar el P-Δ, que agrega la rigidez geométrica −N/h a cada entrepiso.</li>
       <li><b>Sismo vertical (opcional):</b> 2/3 del espectro horizontal con el periodo vertical (Rayleigh con la deformada de la carga muerta); sus efectos se combinan con los horizontales por raíz cuadrada de la suma de cuadrados.</li>
       <li><b>Piso débil y sistemas no paralelos:</b> la resistencia al corte de cada entrepiso se estima con acero mínimo (columnas 1%, placas 0,25%), comparando con el piso de arriba (80% y 65%). Los ejes a 30° o más de X e Y que toman más del 10% del cortante marcan sistemas no paralelos.</li>
+      <li><b>Albañilería confinada (E.070):</b> los muros se modelan como placas con Em = 500 f'm y Gm = 0,4 Em. Se revisa el espesor, el esfuerzo axial, la fisuración con el sismo moderado y la resistencia global (Σ Vm ≥ V del sismo severo). El límite de deriva es 0,005.</li>
+      <li><b>Interacción suelo-estructura (opcional):</b> cada columna o placa se apoya en resortes con las rigideces de Gazetas para su zapata (tamaño por cargas de gravedad y qadm). El suelo usa G = 0,5·ρ·Vs², con el Vs30 del paso 1 o un valor típico del perfil.</li>
       <li><b>Diseño:</b> vigas (flexión y corte por capacidad), columnas (diagrama de interacción por fibras, biaxial), placas (núcleos, acero repartido, corte amplificado) y zapatas por capacidad portante, punzonamiento y corte.</li>
     </ul>
   </details>
@@ -266,7 +274,6 @@
       <li>Placas con elemento lámina (shell). Hoy se usa la columna ancha, con la diferencia de ~3% indicada arriba.</li>
       <li>Diafragma flexible o con aberturas grandes. Se asume diafragma rígido en todos los pisos.</li>
       <li>Plantas distintas por piso: todos los pisos usan la misma planta.</li>
-      <li>Interacción suelo-estructura y muros de albañilería.</li>
     </ul>
   </details>
 
@@ -291,19 +298,20 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116h"></script>
-<script src="lib/OrbitControls.js?v=20261116h"></script>
-<script src="src/solver.js?v=20261116h"></script>
-<script src="src/e030.js?v=20261116h"></script>
-<script src="src/irreg.js?v=20261116h"></script>
-<script src="src/plano.js?v=20261116h"></script>
-<script src="src/dxf.js?v=20261116h"></script>
-<script src="src/cad.js?v=20261116h"></script>
-<script src="src/asistente.js?v=20261116h"></script>
-<script src="src/rediseno.js?v=20261116h"></script>
-<script src="src/fuerzas.js?v=20261116h"></script>
-<script src="src/diseno.js?v=20261116h"></script>
-<script src="src/visor.js?v=20261116h"></script>
-<script src="src/app.js?v=20261116h"></script>
+<script src="lib/three.min.js?v=20261116i"></script>
+<script src="lib/OrbitControls.js?v=20261116i"></script>
+<script src="src/solver.js?v=20261116i"></script>
+<script src="src/e030.js?v=20261116i"></script>
+<script src="src/irreg.js?v=20261116i"></script>
+<script src="src/plano.js?v=20261116i"></script>
+<script src="src/dxf.js?v=20261116i"></script>
+<script src="src/cad.js?v=20261116i"></script>
+<script src="src/asistente.js?v=20261116i"></script>
+<script src="src/rediseno.js?v=20261116i"></script>
+<script src="src/fuerzas.js?v=20261116i"></script>
+<script src="src/diseno.js?v=20261116i"></script>
+<script src="src/ise.js?v=20261116i"></script>
+<script src="src/visor.js?v=20261116i"></script>
+<script src="src/app.js?v=20261116i"></script>
 </body>
 </html>

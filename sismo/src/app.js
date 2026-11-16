@@ -8,7 +8,7 @@
     nombre: "Edificio de prueba 4 pisos (col. 60x60, vigas 30x60)", uso: "vivienda", zona: 4, suelo: "S2", vs30: null, categoria: "C",
     sistemaX: "PÓRTICOS", sistemaY: "PÓRTICOS", dir30: false,
     pisos: { n: 4, h1: 3.2, h: 2.8 }, luces: { x: [5, 5, 5], y: [5, 5, 5] },
-    secc: { col: [0.6, 0.6], colAng: 0, colForma: "rect", colT: 0.25, viga: [0.3, 0.6], placaT: 0.25 }, fc: 210, fy: 4200, cim: { qadm: 1.5, Df: 1.5 },
+    secc: { col: [0.6, 0.6], colAng: 0, colForma: "rect", colT: 0.25, viga: [0.3, 0.6], placaT: 0.25, placaMat: "conc", fm: 65, vm: 8.1 }, fc: 210, fy: 4200, cim: { qadm: 1.5, Df: 1.5 },
     losa: { tipo: "aligerada1", h: 0.20 },
     cargas: { cm: 200, cmRoof: 100, cv: 200, cvRoof: 100, cvEsc: 200 }, plano: null,
   };
@@ -27,7 +27,7 @@
       s.cargas = Object.assign({}, s.cargas, { cm: Math.max(0, (o.cargas ? o.cargas.cm : 500) - 300), cmRoof: Math.max(0, (o.cargas ? o.cargas.cmRoof : 400) - 300) });
     }
     s.cargas.cvEsc = s.cargas.cvEsc ?? (s.uso === "vivienda" ? 200 : 400);
-    s.secc = Object.assign({ colForma: "rect", colT: 0.25 }, s.secc);
+    s.secc = Object.assign({ colForma: "rect", colT: 0.25, placaMat: "conc", fm: 65, vm: 8.1 }, s.secc);
     s.fy = s.fy || 4200; s.cim = Object.assign({ qadm: 1.5, Df: 1.5 }, s.cim);
     return s;
   }
@@ -42,17 +42,17 @@
   }
 
   // ------------------------------------------------------------ formulario
-  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "pDelta", "vertical", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
+  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "pDelta", "vertical", "ise", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "placaMat", "fm", "vm", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
   function aForm() {
     $("nombre").value = st.nombre; $("uso").value = st.uso; $("zona").value = st.zona; $("suelo").value = st.suelo; $("vs30").value = st.vs30 ?? "";
-    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30; $("pDelta").checked = !!st.pDelta; $("vertical").checked = !!st.vertical;
+    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30; $("pDelta").checked = !!st.pDelta; $("ise").checked = !!st.ise; $("vertical").checked = !!st.vertical;
     $("ejesX").value = st.luces.x.join(", "); $("ejesY").value = st.luces.y.join(", ");
     $("nPisos").value = st.pisos.n; $("h1").value = st.pisos.h1; $("h").value = st.pisos.h;
     $("colB").value = st.secc.col[0]; $("colH").value = st.secc.col[1]; $("colAng").value = st.secc.colAng || 0;
     $("colForma").value = st.secc.colForma || "rect"; $("colT").value = st.secc.colT || 0.25;
     $("losaTipo").value = st.losa.tipo; $("losaH").value = st.losa.h; $("cvEsc").value = st.cargas.cvEsc;
     $("vigB").value = st.secc.viga[0]; $("vigH").value = st.secc.viga[1];
-    $("placaT").value = st.secc.placaT; $("fc").value = st.fc; $("fy").value = st.fy; $("qadm").value = st.cim.qadm; $("Df").value = st.cim.Df;
+    $("placaT").value = st.secc.placaT; $("placaMat").value = st.secc.placaMat || "conc"; $("fm").value = st.secc.fm || 65; $("vm").value = st.secc.vm || 8.1; $("fc").value = st.fc; $("fy").value = st.fy; $("qadm").value = st.cim.qadm; $("Df").value = st.cim.Df;
     $("cm").value = st.cargas.cm; $("cmRoof").value = st.cargas.cmRoof; $("cv").value = st.cargas.cv; $("cvRoof").value = st.cargas.cvRoof;
     pistas();
   }
@@ -62,10 +62,10 @@
     const prevUso = st.uso;
     st.nombre = $("nombre").value; st.uso = $("uso").value; st.zona = +$("zona").value; st.suelo = $("suelo").value;
     st.vs30 = $("vs30").value === "" ? null : num("vs30", null);
-    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked; st.pDelta = $("pDelta").checked; st.vertical = $("vertical").checked;
+    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked; st.pDelta = $("pDelta").checked; st.ise = $("ise").checked; st.vertical = $("vertical").checked;
     st.luces = { x: lista("ejesX", st.luces.x), y: lista("ejesY", st.luces.y) };
     st.pisos = { n: Math.max(1, Math.min(30, Math.round(num("nPisos", 4)))), h1: num("h1", 3), h: num("h", 2.8) };
-    st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], colAng: num("colAng", 0), colForma: $("colForma").value, colT: num("colT", 0.25), viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25) };
+    st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], colAng: num("colAng", 0), colForma: $("colForma").value, colT: num("colT", 0.25), viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25), placaMat: $("placaMat").value, fm: num("fm", 65), vm: num("vm", 8.1) };
     const tipoAntes = st.losa.tipo;
     st.losa = { tipo: $("losaTipo").value, h: num("losaH", 0.20) };
     if (st.losa.tipo !== tipoAntes && ev && ev.target && ev.target.id === "losaTipo") { const T = Plano.TIPOS_LOSA[st.losa.tipo]; if (!T.h.includes(st.losa.h)) st.losa.h = T.h[1] ?? T.h[0]; $("losaH").value = st.losa.h; }
@@ -104,7 +104,7 @@
     plano: () => st.plano,
     reemplazar: (p) => { st.plano = p; },
     cambio: () => { guardarLocal(); cambioModelo(); },
-    props: () => ({ colB: st.secc.col[0], colH: st.secc.col[1], colAng: st.secc.colAng || 0, colForma: st.secc.colForma || "rect", colT: st.secc.colT || 0.25, vigB: st.secc.viga[0], vigH: st.secc.viga[1], placaT: st.secc.placaT }),
+    props: () => ({ colB: st.secc.col[0], colH: st.secc.col[1], colAng: st.secc.colAng || 0, colForma: st.secc.colForma || "rect", colT: st.secc.colT || 0.25, vigB: st.secc.viga[0], vigH: st.secc.viga[1], placaT: st.secc.placaT, placaMat: st.secc.placaMat, fm: st.secc.fm, vm: st.secc.vm }),
     herramienta: (h) => document.querySelectorAll("#cadBar [data-h]").forEach(b => b.classList.toggle("on", b.dataset.h === h)),
     seleccion: mostrarSeleccion,
     aviso: (t) => { $("estado").textContent = t; },
@@ -140,8 +140,8 @@
     const [k, o] = els[0], n = els.length > 1 ? ` (${els.length})` : "";
     const opsForma = Object.entries(Plano.FORMAS), opsLosa = Object.entries(Plano.TIPOS_LOSA).map(([kk, t]) => [kk, t.nombre]);
     const campos = { columnas: (els.length === 1 ? [["x", "X (m)"], ["y", "Y (m)"]] : []).concat([["forma", "Forma", opsForma], ["b", (o.forma === "circ" ? "D" : "b") + " (m)"], ["h", "h (m)"], ["t", "Ala t (m)"], ["ang", "Giro (°)"]]).filter(([c]) => !(c === "t" && !["L", "T"].includes(o.forma)) && !(c === "h" && o.forma === "circ")),
-      vigas: [["bw", "b (m)"], ["h", "h (m)"]], placas: [["t", "Espesor (m)"]], losas: [["tipo", "Tipo", opsLosa], ["h", "h (m)"]], ejes: [["nombre", "Nombre"]] }[k];
-    const valor = (c) => c === "tipo" ? (o.tipo || st.losa.tipo) : c === "forma" ? (o.forma || "rect") : c === "h" && k === "losas" ? (o.h || (o.tipo && o.tipo !== st.losa.tipo ? "" : st.losa.h)) : c === "t" && k === "columnas" ? (o.t || 0.25) : (o[c] ?? "");
+      vigas: [["bw", "b (m)"], ["h", "h (m)"]], placas: [["mat", "Material", [["conc", "Concreto armado"], ["alb", "Albañilería confinada"]]], ["t", "Espesor (m)"]].concat(o.mat === "alb" ? [["fm", "f'm (kg/cm²)"], ["vm", "v'm (kg/cm²)"]] : []), losas: [["tipo", "Tipo", opsLosa], ["h", "h (m)"]], ejes: [["nombre", "Nombre"]] }[k];
+    const valor = (c) => c === "mat" ? (o.mat || "conc") : c === "fm" ? (o.fm || 65) : c === "vm" ? (o.vm || 8.1) : c === "tipo" ? (o.tipo || st.losa.tipo) : c === "forma" ? (o.forma || "rect") : c === "h" && k === "losas" ? (o.h || (o.tipo && o.tipo !== st.losa.tipo ? "" : st.losa.h)) : c === "t" && k === "columnas" ? (o.t || 0.25) : (o[c] ?? "");
     const nombre = { columnas: "Columna", vigas: "Viga", placas: "Placa", losas: "Losa", ejes: "Eje" }[k];
     let info = "";
     if (k === "columnas") info = `en (${o.x.toFixed(2)}, ${o.y.toFixed(2)})`;
@@ -153,7 +153,9 @@
       ${k === "losas" ? `<p class="hint">Peso propio ≈ ${Plano.pesoLosa(o.tipo || st.losa.tipo, o.h || st.losa.h)} kg/m². Escalera: el paño queda como hueco con el peso de la escalera y su CV; Vacío: sin losa ni carga.</p>` : ""}
       <div class="btns"><button class="small" id="propBorrar">Borrar</button></div></div>`;
     box.querySelectorAll("input, select").forEach(inp => inp.addEventListener("change", () => {
-      const c = inp.dataset.c, v = ["nombre", "forma", "tipo"].includes(c) ? inp.value : parseFloat(inp.value);
+      const c = inp.dataset.c, v = ["nombre", "forma", "tipo", "mat"].includes(c) ? inp.value : parseFloat(inp.value);
+      if (c === "mat") { CAD.cambiar(p => ids.forEach(id => { const e = p.placas.find(x => x.id === id); if (e) { if (v === "alb") Object.assign(e, { mat: "alb", fm: e.fm || st.secc.fm || 65, vm: e.vm || st.secc.vm || 8.1 }); else { delete e.mat; delete e.fm; delete e.vm; } } })); mostrarSeleccion(ids); return; }
+      if (c === "fm" || c === "vm") { if (v > 0) CAD.cambiar(p => ids.forEach(id => { const e = p.placas.find(x => x.id === id); if (e) e[c] = v; })); return; }
       if (c === "forma" || c === "tipo") { CAD.cambiar(p => ids.forEach(id => { for (const kk of ["columnas", "losas"]) { const e = p[kk].find(x => x.id === id); if (e) { e[c] = v; if (c === "forma" && v === "circ") e.h = e.b; if (c === "tipo") delete e.h; } } })); mostrarSeleccion(ids); return; }
       if (k === "losas" && c === "h") { if (v > 0) CAD.cambiar(p => ids.forEach(id => { const e = p.losas.find(x => x.id === id); if (e) e.h = v; })); mostrarSeleccion(ids); return; }
       if (k === "columnas" && c === "b" && o.forma === "circ") { if (v > 0) CAD.cambiar(p => ids.forEach(id => { const e = p.columnas.find(x => x.id === id); if (e) { e.b = v; e.h = v; } })); return; }
@@ -166,7 +168,7 @@
   const aTodas = (k, fn) => CAD.cambiar(p => p[k].forEach(fn));
   $("btnTodasCol").addEventListener("click", () => { deForm(); aTodas("columnas", c => { c.b = st.secc.col[0]; c.h = st.secc.colForma === "circ" ? st.secc.col[0] : st.secc.col[1]; if (st.secc.colForma && st.secc.colForma !== "rect") { c.forma = st.secc.colForma; c.t = st.secc.colT; } else { delete c.forma; delete c.t; } }); $("estado").textContent = "Sección aplicada a todas las columnas."; });
   $("btnTodasVig").addEventListener("click", () => { deForm(); aTodas("vigas", v => { v.bw = st.secc.viga[0]; v.h = st.secc.viga[1]; }); $("estado").textContent = "Sección aplicada a todas las vigas."; });
-  $("btnTodasPla").addEventListener("click", () => { deForm(); aTodas("placas", w => { w.t = st.secc.placaT; }); $("estado").textContent = "Espesor aplicado a todas las placas."; });
+  $("btnTodasPla").addEventListener("click", () => { deForm(); aTodas("placas", w => { w.t = st.secc.placaT; if (st.secc.placaMat === "alb") Object.assign(w, { mat: "alb", fm: st.secc.fm, vm: st.secc.vm }); else { delete w.mat; delete w.fm; delete w.vm; } }); $("estado").textContent = "Espesor aplicado a todas las placas."; });
 
   // ------------------------------------------------------------ pasos y pestañas
   function irPaso(n) {
@@ -194,7 +196,7 @@
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
     if (window.DWGLector) return Promise.resolve(window.DWGLector);
-    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116h"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116i"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
   $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });
@@ -304,11 +306,13 @@
       try {
         const t = performance.now();
         const model = construirModelo(st);
+        let ise = null;
+        if (st.ise) { ise = ISE.resortes(model, { qadm: st.cim.qadm, Df: st.cim.Df, vs30: st.vs30, suelo: st.suelo, fc: st.fc, fy: st.fy }); ise.T0 = Solver.modal(Solver.buildModel(model), 1)[0].T; model.springs = ise.springs; }
         const p = { norma: "2026", zona: st.zona, suelo: st.suelo, vs30: st.vs30, categoria: st.categoria, sistemaX: st.sistemaX, sistemaY: st.sistemaY, dir30: st.dir30, vertical: !!st.vertical };
         const q0 = E030.parametros(p);
         if (q0.S == null) throw new Error(q0.notaSuelo);
         const r = Irreg.analizarTodo(model, p); r.params = p;
-        r.model = model; r.st = clon(st); r.centros = Solver.centros(r.B);
+        r.model = model; r.st = clon(st); r.ise = ise; r.centros = Solver.centros(r.B);
         CAD.marcas([{ q: [r.centros[0].xcm, r.centros[0].ycm], tipo: "cm" }, { q: [r.centros[0].xcr, r.centros[0].ycr], tipo: "cr" }]);
         ultimo = r; st.colTipica = colTipica();
         $("estado").textContent = `Listo en ${((performance.now() - t) / 1000).toFixed(2)} s · ${Object.keys(model.nodes).length} nudos en planta, ${r.B.elems.length} elementos.`;
@@ -375,7 +379,7 @@
       if (vc) vc.innerHTML = `<table><tbody><tr><td>Periodo vertical Tv (Rayleigh)</td><td>${f(v.Tv)} s</td></tr><tr><td>C vertical</td><td>${f(v.Cv, 2)}</td></tr><tr><td>Sv = 2/3·Z·U·C·S/R</td><td>${f(v.ev, 3)} g</td></tr></tbody></table><p class="aviso">${v.activo ? "Incluido en el diseño: a cada sismo horizontal se le suma ±" + f(100 * v.ev, 1) + "% de los efectos de la CM (combinados por raíz de suma de cuadrados)." : "No incluido. Si tienes volados o luces grandes, actívalo en el paso 1: sumaría ±" + f(100 * v.ev, 1) + "% de los efectos de la CM."}</p>`;
       const pisos = r.B.levels.map(L => L.name);
       const nF = (l) => l.filter(x => x.falla).length;
-      const pest = [["vigas", `Vigas (${d.vigas.length})`, nF(d.vigas)], ["columnas", `Columnas (${d.columnas.length})`, nF(d.columnas)], ["placas", `Placas (${d.placas.length})`, nF(d.placas)], ["zapatas", `Cimentación (${d.zapatas.length})`, nF(d.zapatas)]].filter(x => x[0] !== "placas" || d.placas.length);
+      const pest = [["vigas", `Vigas (${d.vigas.length})`, nF(d.vigas)], ["columnas", `Columnas (${d.columnas.length})`, nF(d.columnas)], ["placas", `Placas (${d.placas.length})`, nF(d.placas)], ["muros", `Albañilería (${d.muros.length})`, nF(d.muros)], ["zapatas", `Cimentación (${d.zapatas.length})`, nF(d.zapatas)]].filter(x => (x[0] !== "placas" || d.placas.length) && (x[0] !== "muros" || d.muros.length));
       if (!pest.some(x => x[0] === disTab)) disTab = "vigas";
       const cierre = Math.abs(fz.totD - (r.cargas.PP + r.cargas.CM)) / (r.cargas.PP + r.cargas.CM);
       const fl = (l) => l.filter(x => !disPiso || x.piso === disPiso || disTab === "zapatas");
@@ -384,10 +388,12 @@
       if (disTab === "vigas") tabla = `<table><thead><tr><th>Piso</th><th>Viga</th><th>b × h</th><th>Mu− izq / Mu+ / Mu− der (t·m)</th><th>Acero superior (izq · centro · der)</th><th>Acero inferior (izq · centro · der)</th><th>Vu (t)</th><th>Estribos</th><th></th></tr></thead><tbody>${fl(d.vigas).map(v => `<tr title="${v.nota}"><td>${v.piso}</td><td>${v.donde}</td><td>${v.b.toFixed(2)} × ${v.h.toFixed(2)}</td><td>${f(v.Mu.negI, 2)} / ${f(v.Mu.pos, 2)} / ${f(v.Mu.negD, 2)}</td><td>${[v.barras.supI, v.barras.supC, v.barras.supD].map(x => x ? x.txt : "—").join(" · ")}</td><td>${[v.barras.infI, v.barras.infC, v.barras.infD].map(x => x ? x.txt : "—").join(" · ")}</td><td>${f(v.Vu, 1)}</td><td style="text-align:left">${v.est.txt}</td><td>${tag(v)}</td></tr>`).join("")}</tbody></table>`;
       if (disTab === "columnas") tabla = `<table><thead><tr><th>Piso</th><th>Columna en</th><th>Sección</th><th>Pu máx (t)</th><th>Acero longitudinal</th><th>Uso</th><th>Vu (t)</th><th>Estribos</th><th></th></tr></thead><tbody>${fl(d.columnas).map(c => `<tr title="${c.nota}"><td>${c.piso}</td><td>${c.donde}</td><td>${c.forma === "circ" ? "Ø " + c.b.toFixed(2) : c.b.toFixed(2) + " × " + c.h.toFixed(2)}${c.forma === "L" || c.forma === "T" ? " (" + c.forma + ")" : ""}</td><td>${f(c.Pu, 1)}</td><td>${c.txt || "—"}</td><td>${c.ratio != null ? pct(c.ratio) : "—"}</td><td>${f(c.Vu, 1)}</td><td style="text-align:left">${c.est ? c.est.txt : c.nota}</td><td>${tag(c)}</td></tr>`).join("")}</tbody></table>`;
       if (disTab === "placas") tabla = `<table><thead><tr><th>Piso</th><th>Placa</th><th>L × t (m)</th><th>Pu / Mu</th><th>Núcleos (extremos)</th><th>Acero vertical</th><th>Acero horizontal</th><th>Vu diseño (t)</th><th>Borde</th><th></th></tr></thead><tbody>${fl(d.placas).map(w => `<tr title="${w.nota}"><td>${w.piso}</td><td>${w.donde}</td><td>${w.Lw.toFixed(2)} × ${w.t.toFixed(2)}</td><td>${f(w.Pu, 0)} t / ${f(w.Mu, 0)} t·m</td><td>${w.txtN}</td><td>${w.txtV}</td><td>${w.txtH}</td><td>${f(w.Vu, 1)} <span class="hint">(× ${f(w.amp, 2)})</span></td><td>${w.confinar ? '<span class="tag warn">Confinar</span>' : "No requiere"}</td><td>${tag(w)}</td></tr>`).join("")}</tbody></table>`;
-      if (disTab === "zapatas") tabla = `<table><thead><tr><th>Elemento</th><th>En</th><th>P servicio (t)</th><th>Tamaño (m)</th><th>Peralte hz (m)</th><th>Desplante Df (m)</th><th>Acero en un sentido</th><th>Acero en el otro</th><th>Notas</th></tr></thead><tbody>${d.zapatas.map(z => `<tr><td>${z.placa ? "Cimiento corrido armado (placa)" : "Zapata aislada"}</td><td>${z.donde}</td><td>${f(z.Ps, 1)}</td><td><b>${f(z.Ly, 2)} × ${f(z.Lz, 2)}</b></td><td>${f(z.hz, 2)}</td><td>${f(z.Df, 2)}</td><td>${z.ay ? z.ay.txt : "—"}</td><td>${z.az ? z.az.txt : "—"}</td><td style="text-align:left">${[z.nota, z.traslape ? `Se traslapa con ${z.traslape.join(", ")}: une ambas en una zapata combinada o conectada.` : ""].filter(Boolean).join(" ") || "—"}</td></tr>`).join("")}</tbody></table>`;
+      if (disTab === "muros") tabla = `<table><thead><tr><th>Piso</th><th>Muro</th><th>L × t (m)</th><th>σ axial / admisible (kg/cm²)</th><th>Ve moderado (t)</th><th>Vm (t)</th><th>Ve ≤ 0,55 Vm</th><th></th><th>Qué revisar</th></tr></thead><tbody>${fl(d.muros).map(m => `<tr><td>${m.piso}</td><td>${m.donde}</td><td>${m.Lw.toFixed(2)} × ${m.t.toFixed(2)}</td><td>${f(m.sigma, 1)} / ${f(m.sigAdm, 1)}</td><td>${f(m.Ve, 1)}</td><td>${f(m.Vm, 1)}</td><td>${m.Ve <= 0.55 * m.Vm ? "Sí" : "No"}</td><td>${tag(m)}</td><td style="text-align:left;white-space:normal;min-width:240px">${m.nota || "—"}</td></tr>`).join("")}</tbody></table>${d.albGlobal.length ? `<table style="margin-top:8px"><thead><tr><th>Piso</th><th>Dirección</th><th>Σ Vm (t)</th><th>V sismo severo (t)</th><th>Resistencia global</th></tr></thead><tbody>${d.albGlobal.filter(g => !disPiso || g.piso === disPiso).map(g => `<tr><td>${g.piso}</td><td>${g.dir}</td><td>${f(g.Vm, 1)}</td><td>${f(g.VE, 1)}</td><td>${g.ok ? '<span class="tag ok">Cumple</span>' : '<span class="tag bad">Falta muro</span>'}</td></tr>`).join("")}</tbody></table>` : ""}`;
+      if (disTab === "zapatas") tabla = `<table><thead><tr><th>Elemento</th><th>En</th><th>P servicio (t)</th><th>Tamaño (m)</th><th>Peralte hz (m)</th><th>Desplante Df (m)</th><th>Acero en un sentido</th><th>Acero en el otro</th><th>Notas</th></tr></thead><tbody>${d.zapatas.map(z => `<tr><td>${z.ciclopeo ? "Cimiento corrido (albañilería)" : z.placa ? "Cimiento corrido armado (placa)" : "Zapata aislada"}</td><td>${z.donde}</td><td>${f(z.Ps, 1)}</td><td><b>${f(z.Ly, 2)} × ${f(z.Lz, 2)}</b></td><td>${f(z.hz, 2)}</td><td>${f(z.Df, 2)}</td><td>${z.ay ? z.ay.txt : "—"}</td><td>${z.az ? z.az.txt : "—"}</td><td style="text-align:left">${[z.nota, z.traslape ? `Se traslapa con ${z.traslape.join(", ")}: une ambas en una zapata combinada o conectada.` : ""].filter(Boolean).join(" ") || "—"}</td></tr>`).join("")}</tbody></table>`;
       const notas = {
         vigas: "Flexión con φ = 0,9 y d = h − 6 cm; acero mínimo 0,7√f'c·b·d/fy y máximo 0,75ρb. En los nudos el acero positivo es al menos " + (r.q.sistemaX === "PÓRTICOS" || r.q.sistemaY === "PÓRTICOS" ? "1/2" : "1/3") + " del negativo y en todo el tramo al menos 1/4 del mayor (E.060 cap. 21). Corte por capacidad: (Mn izq + Mn der)/ln + cortante de 1,25(CM+CV), con zona de confinamiento de 2h.",
         columnas: "Flexocompresión biaxial con diagrama de interacción por fibras (bloque de Whitney, φ = 0,70 con estribos y 0,75 con espiral, que sube a 0,90 con poca carga axial) y contorno de carga lineal, que es conservador. Cuantía entre 1% y 6%. Corte por capacidad con estribos de confinamiento en Lo.",
+        muros: "Albañilería confinada (E.070): Em = 500 f'm. Se revisa el espesor (t ≥ h/20), el esfuerzo axial (≤ 0,2 f'm [1 − (h/35t)²] y ≤ 0,15 f'm), la fisuración con el sismo moderado (la mitad del severo, Ve ≤ 0,55 Vm, con Vm = 0,5 v'm α t L + 0,23 Pg) y que la suma de Vm de cada piso resista el sismo severo. Los cimientos corridos de estos muros son de concreto ciclópeo." + (d.muros[0] ? " " + d.muros[0].txtConf + "." : ""),
         placas: "Flexocompresión con acero repartido (≥ 0,25%) más núcleos en los extremos. El corte se amplifica por Mn/Mu (sin pasar de R), con Vc = αc·√f'c·Acw (αc entre 0,53 y 0,80 según hm/lm). Se pide confinar el borde si el esfuerzo en el extremo pasa de 0,2 f'c.",
         zapatas: `Área por cargas de servicio con la presión neta qn = qadm − γ·Df − s/c = ${f(d.zapatas[0] ? d.zapatas[0].qn : 0, 1)} t/m² (γ = 2,0 t/m³, s/c = 0,2 t/m²). Con sismo: CM + CV ± 0,8 S y 1,3·qadm (práctica usual). Peralte por punzonamiento y corte con d = hz − 10 cm, y por el anclaje de las barras de la columna. Acero mínimo 0,0018·b·h.`,
       };
@@ -480,6 +486,10 @@
         <div id="vertCont" class="hint">Se calcula con el diseño…</div>
       </div>
     </div>
+    ${r.ise ? `<div class="box"><h3>Interacción suelo-estructura</h3><p class="explica">La base no está empotrada: cada apoyo descansa en resortes que representan la zapata sobre el suelo (Gazetas). El edificio se vuelve más flexible.</p>
+      <div class="cards">${tarjeta("T1 con base empotrada", f(r.ise.T0) + " s", "sin resortes")}${tarjeta("T1 con resortes", f(r.modes[0].T) + " s", `+${f(100 * (r.modes[0].T / r.ise.T0 - 1), 1)}%`)}${tarjeta("Suelo", `Vs = ${f(r.ise.Vs, 0)} m/s`, `G = ${f(r.ise.G, 0)} t/m² · ν = ${r.ise.nu}`)}</div>
+      <div class="scroll"><table><thead><tr><th>Apoyo en</th><th>Zapata (m)</th><th>Kx (t/m)</th><th>Ky (t/m)</th><th>Kz (t/m)</th></tr></thead><tbody>${r.ise.info.map(i => `<tr><td>${i.placa ? "Placa " : ""}(${f(i.x, 1)}, ${f(i.y, 1)})</td><td>${f(i.Ly, 2)} × ${f(i.Lz, 2)}</td><td>${f(i.Kx, 0)}</td><td>${f(i.Ky, 0)}</td><td>${f(i.Kz, 0)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="aviso">Las derivas incluyen el giro y el desplazamiento de la base. La E.030 permite la interacción suelo-estructura; compara siempre con la base empotrada y quédate con el caso más desfavorable para el diseño.</p></div>` : ""}
     <div class="grid2">
       <div class="box"><h3>Combinaciones de diseño (E.060, art. 9.2)</h3>
         <table><tbody>${Asistente.combinaciones(q).map((c, i) => `<tr><td>U${i + 1}</td><td style="text-align:left">${c}</td></tr>`).join("")}</tbody></table>
@@ -493,7 +503,7 @@
           <tr><td>Sistema X · Y</td><td>${q.sistemaX} (R0 = ${q.R0x}) · ${q.sistemaY} (R0 = ${q.R0y})</td></tr>
           <tr><td>Ec</td><td>15000·√f'c = ${f(15000 * Math.sqrt(st.fc), 0)} kg/cm²</td></tr>
           <tr><td>Masa</td><td>100% CM + ${st.categoria === "C" ? 25 : 50}% CV, 25% CV azotea</td></tr>
-          <tr><td>Modelo</td><td>Secciones brutas, base empotrada, diafragma rígido</td></tr>
+          <tr><td>Modelo</td><td>Secciones brutas, ${r.ise ? "base sobre resortes (ISE)" : "base empotrada"}, diafragma rígido${st.pDelta ? ", con P-Δ" : ""}</td></tr>
           <tr><td>Periodo inicial hn/CT</td><td>${f(r.hn, 2)} / ${q.CT} = ${f(r.Tini)} s</td></tr>
         </tbody></table>
       </div>

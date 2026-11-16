@@ -201,7 +201,15 @@
       beams.push({ i, j, sec: secc("beam", v.bw, v.h), p1: 1, p2: n });
     }
     const walls = [];
-    for (const w of p.placas) for (const [a, b] of partir(w.a, w.b)) walls.push({ i: nodo(a), j: nodo(b), sec: secc("wall", w.t), p1: 1, p2: n });
+    for (const w of p.placas) for (const [a, b] of partir(w.a, w.b)) {
+      let sc = secc("wall", w.t);
+      if (w.mat === "alb") { // albañilería confinada (E.070): Em = 500 f'm, Gm = 0,4 Em, γ = 1,8 t/m³
+        const fm = w.fm || 65, nm = "A" + Math.round(w.t * 100) + "f" + fm;
+        if (!sections[nm]) sections[nm] = { type: "wall", b: w.t, mat: "alb", fm, vm: w.vm || 8.1, E: 500 * fm * 10, G: 0.4 * 500 * fm * 10, gamma: 1.8 };
+        sc = nm;
+      }
+      walls.push({ i: nodo(a), j: nodo(b), sec: sc, p1: 1, p2: n });
+    }
     // losas: peso propio según su tipo (la CM del formulario es solo acabados + tabiquería); escalera con su CV; vacío sin losa
     // (planos antiguos sin losaTipo: la CM ya incluía la losa y no se suma nada)
     const tl = p.losaTipo || null, base = tl ? pesoLosa(tl.tipo, tl.h) : 0;

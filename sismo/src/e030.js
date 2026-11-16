@@ -62,7 +62,7 @@
       norma, zona: p.zona, suelo: p.suelo, categoria: p.categoria, sistemaX: sx, sistemaY: sy,
       Z: p.Z ?? Z[p.zona], U: p.U ?? U[p.categoria], S: p.S ?? sp.S, Tp: p.Tp ?? sp.Tp, TL: p.TL ?? sp.TL, notaSuelo: sp.nota,
       R0x: p.R0x ?? R0[sx], R0y: p.R0y ?? R0[sy], Iax: p.Iax ?? p.Ia ?? 1, Iay: p.Iay ?? p.Ia ?? 1, Ipx: p.Ipx ?? p.Ip ?? 1, Ipy: p.Ipy ?? p.Ip ?? 1,
-      ecc: p.ecc ?? 0.05, amort: p.amort ?? 0.05, derivaLim: p.derivaLim ?? DERIVA.CONCRETO,
+      ecc: p.ecc ?? 0.05, amort: p.amort ?? 0.05, derivaLim: p.derivaLim ?? (sx === "ALBAÑILERÍA" || sy === "ALBAÑILERÍA" ? DERIVA["ALBAÑILERÍA"] : DERIVA.CONCRETO),
       dir30: p.dir30 ?? false, escReg: 0.8, escIrr: 0.9, CT: Math.min(CT[sx], CT[sy]),
     };
     q.Rx = q.R0x * q.Iax * q.Ipx; q.Ry = q.R0y * q.Iay * q.Ipy;
@@ -154,13 +154,13 @@
       const F = new Float64Array(3 * N);
       D.Fest.forEach((f, k) => { F[3 * k + D.d] = f; });
       const u = S.fullDisp(B, S.solveLateral(B, F));
-      let vw = 0, vc = 0;
+      let vw = 0, vc = 0, va = 0;
       for (const e of B.elems) if (e.type === "col" && e.k === 1) {
         const v = -S.elemForces(e, u)[D.d]; // fuerza en el extremo inferior = reacción
-        if (e.wall != null) vw += v; else vc += v;
+        if (e.wall != null && B.sec[e.sec].mat === "alb") va += v; else if (e.wall != null) vw += v; else vc += v;
       }
-      D.Vmuros = vw; D.Vcolumnas = vc; D.fracMuros = vw / (vw + vc);
-      D.sistemaCalc = D.fracMuros >= 0.7 ? "MUROS" : D.fracMuros > 0.2 ? "DUAL" : "PÓRTICOS";
+      D.Vmuros = vw; D.Valb = va; D.Vcolumnas = vc; D.fracMuros = vw / (vw + vc + va); D.fracAlb = va / (vw + vc + va);
+      D.sistemaCalc = D.fracAlb >= 0.7 ? "ALBAÑILERÍA" : D.fracMuros + D.fracAlb >= 0.7 ? "MUROS" : D.fracMuros + D.fracAlb > 0.2 ? "DUAL" : "PÓRTICOS";
     }
     const p30 = q.dir30 ? 0.3 : 0;
     const dX = derivas(p30 ? [[0, 1], [1, p30]] : [[0, 1]]);

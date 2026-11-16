@@ -147,7 +147,8 @@
       nodesXY[mid] = [(x1 + x2) / 2, (y1 + y2) / 2];
       const Lw = Math.hypot(x2 - x1, y2 - y1), ang = Math.atan2(y2 - y1, x2 - x1), t = sec[w.sec].b;
       const wsec = "~W" + (wi + 1), lsec = "~R" + (wi + 1);
-      sec[wsec] = { type: "col", b: Lw, h: t, wall: true };
+      const ws = sec[w.sec];
+      sec[wsec] = { type: "col", b: Lw, h: t, wall: true, mat: ws.mat, fm: ws.fm, vm: ws.vm, E: ws.E, G: ws.G, gamma: ws.gamma };
       for (let k = w.p1; k <= w.p2; k++) {
         elems.push({ type: "col", a: addPt(mid, k - 1), b: addPt(mid, k), sec: wsec, k, ang, wall: wi, ends: [w.i, w.j] });
         const hk = model.stories[k - 1].h;
@@ -171,7 +172,7 @@
       const pa = pts.get(e.a), pb = pts.get(e.b);
       if (e.type === "link") continue;
       if (e.type === "col") {
-        const W = A * gamma * model.stories[e.k - 1].h;
+        const W = A * (s.gamma || gamma) * model.stories[e.k - 1].h;
         pp.total += W;
         if (e.ends) { // placa: como ETABS, la masa va a las cuatro esquinas del muro
           for (const n of e.ends) { const [x, y] = model.nodes[n]; addMass(e.k - 1, W / 4 / G, x, y); addMass(e.k, W / 4 / G, x, y); }
@@ -216,14 +217,17 @@
     }
 
     // ---- grados de libertad: por nudo (uz, rx, ry) libres; (ux, uy, rz) esclavos del diafragma del nivel
-    const order = [...pts.values()].filter(p => p.k > 0).sort((p, q) => p.k - q.k || p.x - q.x || p.y - q.y);
-    order.forEach((p, i) => { p.eq = 3 * i; });
-    const ns = 3 * order.length, nm = 3 * N;
+    // con interacción suelo-estructura (model.springs), los nudos de la base tienen sus 6 gdl con resortes
+    const resortes = model.springs || null;
+    const order = [...pts.values()].filter(p => p.k > 0 || (resortes && resortes[p.id])).sort((p, q) => p.k - q.k || p.x - q.x || p.y - q.y);
+    let neq = 0;
+    order.forEach(p => { p.eq = neq; neq += p.k === 0 ? 6 : 3; });
+    const ns = neq, nm = 3 * N;
     const masterEq = (k) => 3 * (k - 1); // índice en el bloque de maestros
 
     // A: cada gdl del nudo como combinación de gdl globales. Devuelve [[{g, c}...] x6]; g<ns: esclavo, g>=ns: maestro
     function dofMap(p) {
-      if (p.k === 0) return [[], [], [], [], [], []];
+      if (p.k === 0) return p.eq != null ? [0, 1, 2, 3, 4, 5].map(i => [{ g: p.eq + i, c: 1 }]) : [[], [], [], [], [], []];
       const L = levels[p.k - 1], m0 = ns + masterEq(p.k);
       const dx = p.x - L.xc, dy = p.y - L.yc;
       return [
@@ -238,9 +242,9 @@
     let bw = 0;
     for (const e of elems) {
       const a = pts.get(e.a), b = pts.get(e.b);
-      if (a.k > 0 && b.k > 0) bw = Math.max(bw, Math.abs(a.eq - b.eq) + 2);
+      if (a.eq != null && b.eq != null) bw = Math.max(bw, Math.abs(a.eq - b.eq) + 5);
     }
-    bw = Math.max(bw, 2);
+    bw = Math.max(bw, 5);
     const Kss = new Band(ns, bw);
     const Ksm = Array.from({ length: ns }, () => new Float64Array(nm));
     const Kmm = Array.from({ length: nm }, () => new Float64Array(nm));
@@ -264,7 +268,7 @@
       else { Iy = s.b * s.h ** 3 / 12; Iz = s.h * s.b ** 3 / 12; }
       let As = (s.wall ? 1 : 5 / 6) * A; // placa: ETABS (lámina) usa el área completa a corte
       if (s.props && e.type === "col") ({ A, Iy, Iz, J, As } = s.props); // columnas circulares, en L o en T
-      const Ee = s.rigid ? E * 100 : E, Ge = s.rigid ? Gm * 100 : Gm;
+      const Ee = s.rigid ? E * 100 : (s.E || E), Ge = s.rigid ? Gm * 100 : (s.G || Gm);
       // zonas rígidas
       let a0 = 0, b0 = 0;
       if (rz > 0 && e.type !== "link") {
@@ -290,6 +294,9 @@
         for (const tj of map[j]) addK(ti.g, tj.g, ti.c * tj.c * v);
       }
     }
+
+    // resortes de la base (ejes globales; kx, ky, kz, krx, kry, krz)
+    if (resortes) for (const p of order) if (p.k === 0) { const kk = resortes[p.id]; for (let i = 0; i < 6; i++) Kss.add(p.eq + i, p.eq + i, kk[i]); }
 
     // ---- condensación estática a los 3N gdl de los diafragmas
     Kss.factor();

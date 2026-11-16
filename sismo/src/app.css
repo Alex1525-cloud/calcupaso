@@ -232,3 +232,4 @@ td.bad { color: var(--bad); font-weight: 700; } td.warn { color: var(--warn); fo
 .dis-tabla { max-height: 520px; overflow: auto; }
 .dis-tabla td { white-space: nowrap; }
 .dis-tabla thead th { position: sticky; top: 0; background: var(--surface); }
+.cad .placa.alb { stroke: #b5653a; }
