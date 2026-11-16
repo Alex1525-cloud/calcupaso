@@ -1,0 +1,11 @@
+const Pl = require("../src/plano.js"); const D = require("../src/dxf.js"); const I = require("../src/irreg.js");
+const txt = D.ejemplo(); const d = D.leer(txt);
+console.log("unidades", d.unidades, d.capas);
+const roles = {}; for (const c in d.capas) roles[c] = D.rolSugerido(c);
+const {plano, avisos} = D.importar(d, roles, {escala: D.escalaUnidades(d.unidades), viga:[0.3,0.6], vigasPorEjes:true, losas:true});
+console.log("col", plano.columnas.length, "vig", plano.vigas.length, "pla", plano.placas.length, "losas", plano.losas.length, avisos);
+console.log(plano.placas.map(w=>JSON.stringify(w)).join("\n"));
+const {model} = Pl.aModelo(plano, {n:5,h1:3.2,h:2.8}, 210, {cm:500,cmRoof:400,cv:200,cvRoof:100}, true);
+const r = I.analizarTodo(model, {zona:4,suelo:"S2",categoria:"C",sistemaX:"DUAL",sistemaY:"DUAL"});
+console.log("T", r.modes.slice(0,3).map(m=>m.T.toFixed(3)), "deriva", r.derivaMax, "Ip", r.irreg.Ip, r.irreg.lista.filter(v=>v.presente).map(v=>v.nombre+": "+v.detalle));
+console.log(r.sistema);
