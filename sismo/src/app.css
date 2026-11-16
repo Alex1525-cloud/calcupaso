@@ -153,7 +153,7 @@ details.porque summary { cursor: pointer; font-size: 12px; color: var(--accent);
 .informe { display: none; }
 @media (max-width: 900px) {
   .brand small { display: none; }
-  .top-actions button.ghost, .top-actions label.ghost { padding: 4px 8px; font-size: 12px; }
+  .top-actions button.ghost, .top-actions label.ghost, .top-actions button.primary-s { padding: 4px 8px; font-size: 12px; }
   .layout { grid-template-columns: 1fr; }
   .panel { border-right: none; border-bottom: 1px solid var(--border); }
   .grid2 { grid-template-columns: 1fr; }
