@@ -193,7 +193,8 @@
         ${[["columnas", "Columnas"], ["placas", "Placas"], ["ejes", "Ejes"], ["vigas", "Vigas (eje de la viga)"], ["ignorar", "Ignorar"]].map(([v, t]) => `<option value="${v}" ${DXF.rolSugerido(c) === v ? "selected" : ""}>${t}</option>`).join("")}</select></td></tr>`).join("");
       $("dxfInfo").innerHTML = `<p><b>${nombre}</b>: ${d.ent.length} entidades en ${Object.keys(d.capas).length} capas.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap"><label>Unidades del dibujo <select id="dxfEsc">${[[1, "metros"], [0.01, "centímetros"], [0.001, "milímetros"]].map(([v, t]) => `<option value="${v}" ${v === esc.u ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-        <label>Escala del dibujo <select id="dxfFac">${DXF.ESCALAS.map(f => `<option value="${f}" ${f === esc.f ? "selected" : ""}>${f === 1 ? "1:1 (tamaño real)" : "1:" + f}</option>`).join("")}</select></label></div>
+        <label>Escala del dibujo <select id="dxfFac">${[...new Set([...DXF.ESCALAS, esc.f])].sort((a, b) => a - b).map(f => `<option value="${f}" ${f === esc.f ? "selected" : ""}>${f === 1 ? "1:1 (tamaño real)" : "1:" + f}</option>`).join("")}</select></label></div>
+        ${esc.texto ? `<p class="hint">Escala leída del plano: «${esc.texto.replace(/</g, "&lt;")}».</p>` : ""}
         <div id="dxfResumen" class="msg"></div>
         <div class="scroll"><table class="wrap"><thead><tr><th>Capa</th><th>Objetos</th><th>Qué es</th></tr></thead><tbody>${filas}</tbody></table></div>
         <label class="check"><input id="dxfVigas" type="checkbox" checked> Crear vigas sobre los ejes, de columna a columna (${st.secc.viga[0]} × ${st.secc.viga[1]} m)</label>
@@ -210,8 +211,9 @@
   function resumenDxf() {
     const el = $("dxfResumen"); if (!el || !dxfLeido) return;
     try {
-      const p = DXF.importar(dxfLeido, rolesDxf(), { escala: escalaDxf(), viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: false }).plano;
-      if (!p.columnas.length && !p.placas.length) { el.className = "msg bad"; el.innerHTML = "Con estas capas no sale ninguna columna ni placa: marca como <strong>Columnas</strong> la capa donde están dibujadas."; return; }
+      const rr = DXF.importar(dxfLeido, rolesDxf(), { escala: escalaDxf(), viga: st.secc.viga, placaT: st.secc.placaT, vigasPorEjes: $("dxfVigas").checked, losas: false }), p = rr.plano;
+      const sinEjes = !Object.values(rolesDxf()).includes("ejes");
+      if (!p.columnas.length && !p.placas.length) { el.className = "msg bad"; el.innerHTML = "Con estas capas no sale ninguna columna ni placa: marca como <strong>Columnas</strong> la capa donde están dibujadas." + (sinEjes ? " Tampoco hay capa de ejes: ¿es una lámina de detalles? Sube la planta (encofrado o techo)." : ""); return; }
       const cuenta = {}; p.columnas.forEach(c => { const k = `${f2(c.b)} × ${f2(c.h)}`; cuenta[k] = (cuenta[k] || 0) + 1; });
       const tipica = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0][0];
       // tamaño de la estructura (caras exteriores de columnas y placas; los ejes suelen salirse del edificio)
@@ -222,7 +224,9 @@
       const raro = p.columnas.length && (+tipica.split(" × ")[0] < 0.15 || +tipica.split(" × ")[0] > 1.5) || Math.max(ax, ay) > 200 || Math.max(ax, ay) < 2;
       el.className = "msg " + (raro ? "bad" : "ok");
       el.innerHTML = `Saldrán <strong>${p.columnas.length} columnas</strong>${p.columnas.length ? ` (la mayoría de ${tipica} m)` : ""}, ${p.placas.length} placas y ${p.vigas.length} vigas, en una planta de <strong>${f2(ax)} × ${f2(ay)} m</strong>.` +
-        (raro ? " Estas medidas no parecen reales: cambia las unidades o la escala del dibujo." : " Si las medidas no coinciden con tu plano, cambia la escala.");
+        (raro ? " Estas medidas no parecen reales: cambia las unidades o la escala del dibujo." : " Si las medidas no coinciden con tu plano, cambia la escala.") +
+        (rr.avisos.length ? " <br>" + rr.avisos.join(" ") : "") +
+        (sinEjes ? " <br>Ojo: no hay capa de <strong>Ejes</strong>. Si la lámina es de detalles o cortes, mejor sube la planta de encofrado o de techo." : "");
     } catch (e) { el.className = "msg bad"; el.textContent = e.message; }
   }
   const f2 = (v) => (+v).toFixed(2);
