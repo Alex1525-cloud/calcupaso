@@ -163,7 +163,8 @@
   const abrirDlgDxf = () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); };
   $("btnDxf").addEventListener("click", abrirDlgDxf);
   // botón de arriba: abre la ventana y de frente el selector de archivo
-  $("btnAbrirPlano").addEventListener("click", () => { abrirDlgDxf(); $("fileDxf").click(); });
+  // botón de arriba: es un <label> con su propio selector de archivo (abre la carpeta en todos los navegadores)
+  $("filePlanoTop").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (!f) return; abrirDlgDxf(); leerArchivoPlano(f); });
   $("btnDxfCancelar").addEventListener("click", () => $("dlgDxf").close());
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
@@ -171,8 +172,8 @@
     if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
-  $("fileDxf").addEventListener("change", async (e) => {
-    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });
+  async function leerArchivoPlano(f) {
     const buf = await f.arrayBuffer(), cab = new TextDecoder().decode(new Uint8Array(buf, 0, Math.min(6, buf.byteLength)));
     if (/^AC1\d\d\d/.test(cab)) {
       $("dxfInfo").innerHTML = `<p>Leyendo el DWG ${f.name}…</p>`;
@@ -183,7 +184,7 @@
         prepararDxf(d, f.name + (d.version ? ` (formato ${d.version})` : ""));
       } catch (err) { console.error(err); $("dxfInfo").innerHTML = `<div class="msg bad">No pude leer este DWG: puede estar dañado o usar algo que el lector aún no soporta. En AutoCAD usa <b>Guardar como → DXF</b> y súbelo así.</div>`; $("btnDxfImportar").disabled = true; }
     } else prepararDxf(new TextDecoder().decode(buf), f.name);
-  });
+  }
   $("btnDxfEjemplo").addEventListener("click", () => prepararDxf(DXF.ejemplo(), "ejemplo.dxf"));
   function prepararDxf(entrada, nombre) {
     try {
@@ -429,10 +430,27 @@
     e.target.value = "";
   });
   $("btnEjemplo").addEventListener("click", () => { st = nuevoEjemplo(); aForm(); guardarLocal(); CAD.zoomExtension(); cambioModelo(); analizar(false); });
+  // tema claro/oscuro y paleta de colores (se recuerdan en este navegador)
+  const LOOK = "sismopaso.look";
+  const look = (() => { try { return JSON.parse(localStorage.getItem(LOOK)) || {}; } catch (e) { return {}; } })();
+  const aplicarLook = (repintar) => {
+    const d = document.documentElement;
+    if (look.tema) d.dataset.theme = look.tema; else delete d.dataset.theme;
+    d.dataset.pal = look.pal || "azul";
+    document.querySelectorAll("#palpop [data-pal]").forEach(b => b.setAttribute("aria-pressed", b.dataset.pal === d.dataset.pal));
+    try { localStorage.setItem(LOOK, JSON.stringify(look)); } catch (e) { }
+    if (repintar) { Visor.tema(); redibujar3D(); CAD.dibujar(); }
+  };
+  aplicarLook(false);
   $("btnTema").addEventListener("click", () => {
     const d = document.documentElement, oscuro = d.dataset.theme ? d.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
-    d.dataset.theme = oscuro ? "light" : "dark"; Visor.tema(); redibujar3D(); CAD.dibujar();
+    look.tema = oscuro ? "light" : "dark"; aplicarLook(true);
   });
+  const pop = $("palpop"), pb = $("palbtn"), verPop = (o) => { pop.hidden = !o; pb.setAttribute("aria-expanded", o); };
+  pb.addEventListener("click", (e) => { e.stopPropagation(); verPop(pop.hidden); });
+  document.addEventListener("click", (e) => { if (!pop.hidden && !pop.contains(e.target)) verPop(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") verPop(false); });
+  pop.querySelectorAll("[data-pal]").forEach(b => b.addEventListener("click", () => { look.pal = b.dataset.pal; aplicarLook(true); verPop(false); }));
 
   // ------------------------------------------------------------ inicio
   $("uso").innerHTML = Object.entries(Asistente.USOS).map(([k, u]) => `<option value="${k}">${u.nombre}</option>`).join("");
