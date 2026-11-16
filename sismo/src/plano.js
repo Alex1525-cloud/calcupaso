@@ -193,22 +193,24 @@
       for (let i = 0; i < ts.length - 1; i++) if (ts[i + 1] - ts[i] > 1e-6) out.push([P(ts[i]), P(ts[i + 1])]);
       return out;
     };
-    const columns = p.columnas.map(c => { const nm = secc("col", c.b, c.h, c), pr = sections[nm].props; return { node: nodo([c.x, c.y]), sec: nm, p1: 1, p2: n, ang: (c.ang || 0) + (pr ? pr.phi : 0), angDib: c.ang || 0 }; });
+    // rango de pisos de cada elemento (plantas distintas por piso); sin "pisos" va en todos
+    const rango = (o) => { const r = o.pisos || [1, n]; return [Math.max(1, r[0]), Math.min(n, r[1])]; };
+    const columns = p.columnas.filter(c => rango(c)[0] <= rango(c)[1]).map(c => { const nm = secc("col", c.b, c.h, c), pr = sections[nm].props; const [p1, p2] = rango(c); return { node: nodo([c.x, c.y]), sec: nm, p1, p2, ang: (c.ang || 0) + (pr ? pr.phi : 0), angDib: c.ang || 0 }; });
     const beams = [], vistos = new Set();
-    for (const v of p.vigas) for (const [a, b] of partir(v.a, v.b)) {
-      const i = nodo(a), j = nodo(b), kk = [i, j].sort().join();
+    for (const v of p.vigas) { const [p1, p2] = rango(v); if (p1 > p2) continue; for (const [a, b] of partir(v.a, v.b)) {
+      const i = nodo(a), j = nodo(b), kk = [i, j].sort().join() + "#" + p1 + "-" + p2;
       if (i === j || vistos.has(kk)) continue; vistos.add(kk);
-      beams.push({ i, j, sec: secc("beam", v.bw, v.h), p1: 1, p2: n });
-    }
+      beams.push({ i, j, sec: secc("beam", v.bw, v.h), p1, p2 });
+    } }
     const walls = [];
-    for (const w of p.placas) for (const [a, b] of partir(w.a, w.b)) {
+    for (const w of p.placas) for (const [a, b] of (rango(w)[0] <= rango(w)[1] ? partir(w.a, w.b) : [])) {
       let sc = secc("wall", w.t);
       if (w.mat === "alb") { // albañilería confinada (E.070): Em = 500 f'm, Gm = 0,4 Em, γ = 1,8 t/m³
         const fm = w.fm || 65, nm = "A" + Math.round(w.t * 100) + "f" + fm;
         if (!sections[nm]) sections[nm] = { type: "wall", b: w.t, mat: "alb", fm, vm: w.vm || 8.1, E: 500 * fm * 10, G: 0.4 * 500 * fm * 10, gamma: 1.8 };
         sc = nm;
       }
-      walls.push({ i: nodo(a), j: nodo(b), sec: sc, p1: 1, p2: n });
+      const [p1, p2] = rango(w); walls.push({ i: nodo(a), j: nodo(b), sec: sc, p1, p2 });
     }
     // losas: peso propio según su tipo (la CM del formulario es solo acabados + tabiquería); escalera con su CV; vacío sin losa
     // (planos antiguos sin losaTipo: la CM ya incluía la losa y no se suma nada)
@@ -216,10 +218,10 @@
     const slabs = p.losas.filter(l => (l.tipo || (tl && tl.tipo)) !== "vacio").map(l => {
       const tipo = l.tipo || (tl ? tl.tipo : "aligerada1"), h = l.h || (tl && tipo === tl.tipo ? tl.h : (TIPOS_LOSA[tipo].h[1] || TIPOS_LOSA[tipo].h[0]));
       const extra = tl ? pesoLosa(tipo, h) : (l.tipo ? pesoLosa(tipo, h) - 300 : 0); // sin losaTipo: diferencia respecto a la aligerada de 0.20 incluida en la CM
-      const o = { nodes: l.pts.map(nodo), p1: 1, p2: n, cm: extra / 1000, tipo };
+      const [p1, p2] = rango(l); const o = { nodes: l.pts.map(nodo), p1, p2, cm: extra / 1000, tipo };
       if (tipo === "escalera") { o.cm += 0.1; o.cvAbs = (cargas.cvEsc || 200) / 1000; }
       return o;
-    });
+    }).filter(o => o.p1 <= o.p2);
     // aberturas del diafragma (vacíos, escaleras y paños sin losa) para la irregularidad de la Tabla 12
     let Abruta = 0, Aab = 0;
     try {
@@ -244,8 +246,13 @@
   }
 
   // Revisión rápida antes de analizar
-  function revisar(p) {
+  function revisar(p, n) {
     const err = [], av = [];
+    if (n) for (let k = 1; k <= n; k++) { // con plantas distintas por piso, cada piso necesita losa
+      const en = (o) => { const r = o.pisos || [1, n]; return r[0] <= k && k <= r[1]; };
+      if (!p.losas.some(l => en(l) && l.tipo !== "vacio")) err.push(`El piso ${k} no tiene losa.`);
+      else if (!p.columnas.some(en) && !p.placas.some(en)) err.push(`El piso ${k} no tiene columnas ni placas.`);
+    }
     if (!p.columnas.length && !p.placas.length) err.push("Dibuja al menos columnas o placas.");
     if (!p.losas.length) err.push("No hay losas: usa «Losas automáticas» o la herramienta Losa.");
     // puntos de las vigas: ¿llegan a una columna, placa u otra viga?

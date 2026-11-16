@@ -11,6 +11,13 @@
   const punteros = new Map(); let pinch = null, arrastre = null;
 
   const plano = () => cb.plano();
+  // plantas distintas por piso: piso que se edita (0 = todos) y rango de pisos de cada elemento
+  const pisoAct = () => (cb.piso ? cb.piso() : 0);
+  const nPisos = () => (cb.nPisos ? cb.nPisos() : 99);
+  const rangoDe = (o) => o.pisos || [1, nPisos()];
+  const enPiso = (o) => { const k = pisoAct(); if (!k || !o) return true; const [a, b] = rangoDe(o); return a <= k && k <= b; };
+  const fuera = (o) => enPiso(o) ? "" : " fuera";
+  const extraPiso = () => { const k = pisoAct(); return k ? { pisos: [k, k] } : {}; };
   const W = () => svg.clientWidth || 600, H = () => svg.clientHeight || 400;
   const aPx = ([x, y]) => [W() / 2 + (x - vista.x) * vista.s, H() / 2 - (y - vista.y) * vista.s];
   const aM = (px, py) => [vista.x + (px - W() / 2) / vista.s, vista.y - (py - H() / 2) / vista.s];
@@ -54,7 +61,7 @@
     // losas
     for (const l of p.losas) {
       const pts = l.pts.map(aPx), tipo = l.tipo || "";
-      el("polygon", { points: pts.map(q => q.join(",")).join(" "), class: "losa" + (tipo ? " " + tipo : "") + (sel.has(l.id) ? " sel" : ""), "data-id": l.id });
+      el("polygon", { points: pts.map(q => q.join(",")).join(" "), class: "losa" + (tipo ? " " + tipo : "") + fuera(l) + (sel.has(l.id) ? " sel" : ""), "data-id": l.id });
       if (tipo === "escalera" || tipo === "vacio") { // símbolo: escalones o aspa
         const xs = pts.map(q => q[0]), ys = pts.map(q => q[1]), x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
         if (tipo === "vacio") { el("line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "simb" }); el("line", { x1: x0, y1: y1, x2: x1, y2: y0, class: "simb" }); }
@@ -69,12 +76,12 @@
       if (e.nombre) { el("circle", { cx: a[0], cy: a[1], r: 9, class: "burbuja" }); const t = el("text", { x: a[0], y: a[1] + 4, class: "burbuja-t" }); t.textContent = e.nombre; }
     }
     // vigas
-    for (const v of p.vigas) { const a = aPx(v.a), b = aPx(v.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "viga" + (sel.has(v.id) ? " sel" : ""), "stroke-width": Math.max(2, v.bw * vista.s) }); }
+    for (const v of p.vigas) { const a = aPx(v.a), b = aPx(v.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "viga" + fuera(v) + (sel.has(v.id) ? " sel" : ""), "stroke-width": Math.max(2, v.bw * vista.s) }); }
     // placas
-    for (const w of p.placas) { const a = aPx(w.a), b = aPx(w.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "placa" + (w.mat === "alb" ? " alb" : "") + (sel.has(w.id) ? " sel" : ""), "stroke-width": Math.max(3, w.t * vista.s) }); }
+    for (const w of p.placas) { const a = aPx(w.a), b = aPx(w.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "placa" + (w.mat === "alb" ? " alb" : "") + fuera(w) + (sel.has(w.id) ? " sel" : ""), "stroke-width": Math.max(3, w.t * vista.s) }); }
     // columnas
     for (const c of p.columnas) {
-      const [cx, cy] = aPx([c.x, c.y]), bw = Math.max(5, c.b * vista.s), hh = Math.max(5, c.h * vista.s), cls = "columna" + (sel.has(c.id) ? " sel" : "");
+      const [cx, cy] = aPx([c.x, c.y]), bw = Math.max(5, c.b * vista.s), hh = Math.max(5, c.h * vista.s), cls = "columna" + fuera(c) + (sel.has(c.id) ? " sel" : "");
       if (c.forma === "circ") el("circle", { cx, cy, r: Math.max(3, c.b * vista.s / 2), class: cls });
       else if (c.forma === "L" || c.forma === "T") {
         const a = (c.ang || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
@@ -237,35 +244,36 @@
   C.seleccion = () => [...sel];
   C.marcas = (m) => { marcas = m || []; C.dibujar(); };
   C.limpiarSeleccion = () => { sel.clear(); C.dibujar(); };
+  C.enPiso = enPiso;
   C.orto = (v) => { orto = v; temporal(); }; C.iman = (v) => { iman = v; temporal(); };
 
   function poner(q) {
     const pr = cb.props(), p = plano();
     if (herr === "col") {
-      if (p.columnas.some(c => Pl.dist([c.x, c.y], q) < 0.02)) { cb.aviso("Ya hay una columna ahí."); return; }
-      C.cambiar(p => p.columnas.push({ id: Pl.nuevoId("c"), x: q[0], y: q[1], b: pr.colB, h: pr.colForma === "circ" ? pr.colB : pr.colH, ang: pr.colAng || 0, ...(pr.colForma && pr.colForma !== "rect" ? { forma: pr.colForma, t: pr.colT } : {}) }));
+      if (p.columnas.some(c => enPiso(c) && Pl.dist([c.x, c.y], q) < 0.02)) { cb.aviso("Ya hay una columna ahí."); return; }
+      C.cambiar(p => p.columnas.push({ ...extraPiso(), id: Pl.nuevoId("c"), x: q[0], y: q[1], b: pr.colB, h: pr.colForma === "circ" ? pr.colB : pr.colH, ang: pr.colAng || 0, ...(pr.colForma && pr.colForma !== "rect" ? { forma: pr.colForma, t: pr.colT } : {}) }));
     } else if (herr === "viga" || herr === "placa" || herr === "eje") {
       if (!inicio) { inicio = q.slice(); temporal(); return; }
       if (Pl.dist(inicio, q) < 0.05) return;
       const a = inicio.slice(), b = q.slice();
-      if (herr === "viga") C.cambiar(p => p.vigas.push({ id: Pl.nuevoId("v"), a, b, bw: pr.vigB, h: pr.vigH }));
-      if (herr === "placa") C.cambiar(p => p.placas.push(Object.assign({ id: Pl.nuevoId("p"), a, b, t: pr.placaT }, pr.placaMat === "alb" ? { mat: "alb", fm: pr.fm || 65, vm: pr.vm || 8.1 } : {})));
+      if (herr === "viga") C.cambiar(p => p.vigas.push({ ...extraPiso(), id: Pl.nuevoId("v"), a, b, bw: pr.vigB, h: pr.vigH }));
+      if (herr === "placa") C.cambiar(p => p.placas.push(Object.assign({ ...extraPiso(), id: Pl.nuevoId("p"), a, b, t: pr.placaT }, pr.placaMat === "alb" ? { mat: "alb", fm: pr.fm || 65, vm: pr.vm || 8.1 } : {})));
       if (herr === "eje") { C.cambiar(p => p.ejes.push({ id: Pl.nuevoId("e"), nombre: pr.ejeNombre || "", a, b })); inicio = null; temporal(); return; }
       inicio = b; temporal();
     } else if (herr === "losa") {
-      if (p.losas.some(l => Pl.dentro(q[0], q[1], l.pts))) { cb.aviso("Ese paño ya tiene losa."); return; }
+      if (p.losas.some(l => enPiso(l) && Pl.dentro(q[0], q[1], l.pts))) { cb.aviso("Ese paño ya tiene losa en este piso."); return; }
       const c = Pl.losaEn(p, q[0], q[1]);
       if (!c) { cb.aviso("No encontré un recuadro cerrado por vigas o placas en ese punto."); return; }
-      C.cambiar(p => p.losas.push({ id: Pl.nuevoId("l"), pts: c }));
+      C.cambiar(p => p.losas.push({ ...extraPiso(), id: Pl.nuevoId("l"), pts: c }));
     }
   }
   function buscar(px, py) {
     const p = plano(), q = aM(px, py), tol = 7 / vista.s;
-    for (const c of p.columnas) if (Pl.dist([c.x, c.y], q) < Math.max(c.b, c.h) / 2 + tol) return c.id;
-    for (const w of p.placas) { const r = Pl.proyeccion(q, w.a, w.b); if (r.d < w.t / 2 + tol && r.t >= 0 && r.t <= 1) return w.id; }
-    for (const v of p.vigas) { const r = Pl.proyeccion(q, v.a, v.b); if (r.d < v.bw / 2 + tol && r.t >= 0 && r.t <= 1) return v.id; }
+    for (const c of p.columnas) if (enPiso(c) && Pl.dist([c.x, c.y], q) < Math.max(c.b, c.h) / 2 + tol) return c.id;
+    for (const w of p.placas) { if (!enPiso(w)) continue; const r = Pl.proyeccion(q, w.a, w.b); if (r.d < w.t / 2 + tol && r.t >= 0 && r.t <= 1) return w.id; }
+    for (const v of p.vigas) { if (!enPiso(v)) continue; const r = Pl.proyeccion(q, v.a, v.b); if (r.d < v.bw / 2 + tol && r.t >= 0 && r.t <= 1) return v.id; }
     for (const e of p.ejes) { const r = Pl.proyeccion(q, e.a, e.b); if (r.d < tol && r.t >= 0 && r.t <= 1) return e.id; }
-    const ls = p.losas.filter(l => Pl.dentro(q[0], q[1], l.pts));
+    const ls = p.losas.filter(l => enPiso(l) && Pl.dentro(q[0], q[1], l.pts));
     return ls.length ? ls[0].id : null;
   }
   function clic(m, e) {
@@ -278,7 +286,22 @@
     }
     poner(snap ? snap.q : iman_(aM(...m)).q);
   }
-  function quitar(p, ids) { for (const k of ["columnas", "vigas", "placas", "losas", "ejes"]) p[k] = p[k].filter(o => !ids.has(o.id)); }
+  function quitar(p, ids) {
+    const kp = pisoAct();
+    for (const k of ["columnas", "vigas", "placas", "losas", "ejes"]) {
+      if (!kp || k === "ejes") { p[k] = p[k].filter(o => !ids.has(o.id)); continue; }
+      const nuevos = [];
+      p[k] = p[k].filter(o => {
+        if (!ids.has(o.id)) return true;
+        const [a, b] = rangoDe(o);
+        if (a === b || kp < a || kp > b) return false;
+        if (kp === a) o.pisos = [a + 1, b]; else if (kp === b) o.pisos = [a, b - 1];
+        else { o.pisos = [a, kp - 1]; nuevos.push(Object.assign(JSON.parse(JSON.stringify(o)), { id: Pl.nuevoId(k[0]), pisos: [kp + 1, b] })); }
+        return true;
+      });
+      p[k].push(...nuevos);
+    }
+  }
   function borrarSel() { if (!sel.size) return; const ids = new Set(sel); C.cambiar(p => quitar(p, ids)); sel.clear(); cb.seleccion([]); }
   C.borrarSel = borrarSel;
 
