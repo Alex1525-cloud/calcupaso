@@ -302,6 +302,21 @@
     }
     for (let i = 0; i < nm; i++) for (let j = 0; j < i; j++) { const v = 0.5 * (KL[i][j] + KL[j][i]); KL[i][j] = KL[j][i] = v; }
 
+    // efecto P-Δ (opcional, como la opción de ETABS basada en la masa): rigidez geométrica de cada entrepiso
+    // con la carga de gravedad que tiene encima (peso sísmico), Kg = −N/h en traslación y −N·r²/h en giro.
+    if (model.pDelta) {
+      for (let k = N; k >= 1; k--) {
+        let Nk = 0, Mk = 0, Jk = 0;
+        for (let j = k; j <= N; j++) { const L = levels[j - 1]; Nk += L.W; Mk += L.m; Jk += L.J; }
+        const h = model.stories[k - 1].h, gk = Nk / h, r2 = Jk / Mk;
+        for (let d = 0; d < 3; d++) {
+          const g = d === 2 ? gk * r2 : gk, a = 3 * (k - 1) + d;
+          KL[a][a] -= g;
+          if (k > 1) { const b = 3 * (k - 2) + d; KL[b][b] -= g; KL[a][b] += g; KL[b][a] += g; }
+        }
+      }
+    }
+
     const mass = new Float64Array(nm);
     levels.forEach((L, i) => { mass[3 * i] = L.m; mass[3 * i + 1] = L.m; mass[3 * i + 2] = L.J; });
 

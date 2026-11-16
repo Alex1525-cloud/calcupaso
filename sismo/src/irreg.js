@@ -8,6 +8,8 @@
   const TIPOS = [
     ["rigidez", "Piso blando (rigidez)", "Altura", 0.75],
     ["rigidez_ext", "Piso blando extremo (rigidez)", "Altura", 0.50],
+    ["debil", "Piso débil (resistencia)", "Altura", 0.75],
+    ["debil_ext", "Piso débil extremo (resistencia)", "Altura", 0.50],
     ["masa", "Masa o peso", "Altura", 0.90],
     ["geom_vert", "Geometría vertical", "Altura", 0.90],
     ["discont", "Discontinuidad en los sistemas resistentes", "Altura", 0.80],
@@ -15,8 +17,49 @@
     ["torsion_ext", "Torsional extrema", "Planta", 0.60],
     ["esquinas", "Esquinas entrantes", "Planta", 0.90],
     ["diafragma", "Discontinuidad del diafragma", "Planta", 0.85],
+    ["no_paralelos", "Sistemas no paralelos", "Planta", 0.90],
   ];
-  const EXTREMAS = ["rigidez_ext", "torsion_ext"];
+  const EXTREMAS = ["rigidez_ext", "torsion_ext", "debil_ext"];
+  const Fz = () => root.Fuerzas || require("./fuerzas.js");
+  const Dz = () => root.Diseno || require("./diseno.js");
+
+  /* Resistencia al corte de cada entrepiso (estimada con acero mínimo: columnas 1% y estribos Ø3/8" @ d/2;
+     placas: Vc + Vs con 0,25% de acero horizontal), con la carga axial de CM + 25% CV. */
+  function resistencias(model, B, fc, fy) {
+    const D = Dz(), g = Fz().gravedad(B), sec = B.sec, N = B.N, out = Array.from({ length: N }, () => [0, 0]);
+    const cache = new Map();
+    for (const [e, f] of g.porElem) {
+      if (e.type !== "col") continue;
+      const s = sec[e.sec], Pg = (f.D.P[0] + 0.25 * f.L.P[0]) * 1000, h = model.stories[e.k - 1].h * 100;
+      const key = e.sec + "|" + Math.round(Pg / 2000);
+      let V;
+      if (cache.has(key)) V = cache.get(key);
+      else {
+        const sl = D.seccionLocal(s), Ag = sl.Ag;
+        if (e.wall != null) {
+          const Lw = s.b * 100, t = s.h * 100;
+          const hm = (B.z[N] - B.z[e.k - 1]) * 100, rel = hm / Lw, ac = rel <= 1.5 ? 0.8 : rel >= 2 ? 0.53 : 0.8 - 0.27 * (rel - 1.5) / 0.5;
+          const Vn = Lw * t * (ac * Math.sqrt(fc) + 0.0025 * fy);
+          V = { plano: Vn, wall: true }; // placas: resistencia al corte (Vc + Vs con 0,25%)
+        } else {
+          const n = Math.max(sl.circ ? 6 : sl.poly.length, Math.ceil(0.01 * Ag / 2.84)), pos = D.barrasContorno(sl.poly, 6, n, sl.circ);
+          const bars = pos.map(([y, z]) => [y, z, 2.84]), r = [];
+          for (const eje of [0, 1]) {
+            const ext = Math.max(...sl.poly.map(q => q[eje])) - Math.min(...sl.poly.map(q => q[eje])), otro = Math.max(...sl.poly.map(q => q[1 - eje])) - Math.min(...sl.poly.map(q => q[1 - eje]));
+            const Mn = D.phiMn(D.curva(sl.fib, bars, eje, 1, fc, fy, Ag, sl.circ, true), Pg), d = ext - 6;
+            const Vn = 0.53 * Math.sqrt(fc) * (1 + Math.max(0, Pg) / (140 * Ag)) * otro * d + 2 * 1.42 * fy;
+            r.push(Math.min(Vn, 2 * Mn / (h - 60)));
+          }
+          V = { y: r[0], z: r[1] };
+        }
+        cache.set(key, V);
+      }
+      const c = Math.abs(Math.cos(e.ang || 0)), sn = Math.abs(Math.sin(e.ang || 0));
+      if (V.wall) { out[e.k - 1][0] += c * V.plano; out[e.k - 1][1] += sn * V.plano; }
+      else { out[e.k - 1][0] += c * V.y + sn * V.z; out[e.k - 1][1] += sn * V.y + c * V.z; }
+    }
+    return out.map(v => v.map(x => x / 1000)); // t
+  }
 
   function inPoly(x, y, poly) {
     let c = false;
@@ -121,6 +164,38 @@
       const f = ab.Aab / ab.Abruta, t = `Aberturas ${ab.Aab.toFixed(1)} m² de ${ab.Abruta.toFixed(1)} m² (${(100 * f).toFixed(0)}%)`;
       if (f > 0.5) marcar("diafragma", t + " > 50% del área bruta."); else if (ab.Aab > 0) anotar("diafragma", t + " ≤ 50%.");
     }
+    // piso débil: resistencia al corte del entrepiso < 80% (extremo < 65%) de la del entrepiso de arriba
+    try {
+      const res = resistencias(model, B, model.fc || Math.pow(model.E / 150000, 2), model.fy || 4200);
+      r.resistencia = res.map((v, k) => ({ piso: L[k].name, X: v[0], Y: v[1] }));
+      for (let k = 0; k < N - 1; k++) for (const [d, i] of [["X", 0], ["Y", 1]]) {
+        const a = res[k][i], b = res[k + 1][i]; if (!(b > 0)) continue;
+        const t = `${L[k].name} ${d}: ${a.toFixed(0)} t vs ${b.toFixed(0)} t arriba (${(100 * a / b).toFixed(0)}%)`;
+        if (a < 0.65 * b) marcar("debil_ext", t); else if (a < 0.8 * b) marcar("debil", t);
+      }
+      if (!res.some((v, k) => k < N - 1 && (v[0] < 0.8 * res[k + 1][0] || v[1] < 0.8 * res[k + 1][1]))) anotar("debil", "Resistencias estimadas con acero mínimo: ningún entrepiso baja del 80% del de arriba.");
+    } catch (err) { anotar("debil", "No se pudo estimar la resistencia: " + err.message); }
+    // sistemas no paralelos: elementos a 30° o más de las direcciones de análisis que toman más del 10% del cortante
+    {
+      const desv = (a, b) => { const [x1, y1] = model.nodes[a], [x2, y2] = model.nodes[b]; let g = Math.abs(Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI) % 90; return Math.min(g, 90 - g); };
+      const nodosNP = new Set(), vigasP = new Set();
+      for (const v of model.beams) { if (desv(v.i, v.j) >= 30 - 1e-6) { nodosNP.add(v.i); nodosNP.add(v.j); } else { vigasP.add(v.i); vigasP.add(v.j); } }
+      const murosNP = new Set((model.walls || []).map((w, i) => desv(w.i, w.j) >= 30 - 1e-6 ? i : -1).filter(i => i >= 0));
+      if (nodosNP.size || murosNP.size) {
+        for (const D of r.dirs) {
+          const F = new Float64Array(3 * N); D.Fest.forEach((f, k) => { F[3 * k + D.d] = f; });
+          const u = S.fullDisp(B, S.solveLateral(B, F));
+          let vnp = 0, vt = 0;
+          for (const e of B.elems) if (e.type === "col" && e.k === 1) {
+            const v = Math.abs(S.elemForces(e, u)[D.d]); vt += v;
+            const id = B.pts.get(e.a).id;
+            if (e.wall != null ? murosNP.has(e.wall) : nodosNP.has(id) && !vigasP.has(id)) vnp += v;
+          }
+          const fr = vt ? vnp / vt : 0, t = `Dirección ${D.d ? "Y" : "X"}: los elementos no paralelos toman ${(100 * fr).toFixed(0)}% del cortante`;
+          if (fr > 0.1) marcar("no_paralelos", t + " (> 10%)."); else anotar("no_paralelos", t + " (≤ 10%, no aplica).");
+        }
+      } else anotar("no_paralelos", "Todos los ejes forman menos de 30° con X o Y.");
+    }
     // discontinuidad: columnas o placas que empiezan sobre el piso 1 sin nada debajo
     for (const c of model.columns) if (c.p1 > 1 && !model.columns.some(o => o.node === c.node && o.p1 <= c.p1 - 1 && c.p1 - 1 <= o.p2))
       marcar("discont", `Columna ${c.node} nace en el piso ${c.p1} sin columna debajo (revisar si toma > 10% del cortante).`);
@@ -169,7 +244,7 @@
     return r;
   }
 
-  const Irreg = { TIPOS, evaluar, restricciones, analizarTodo, esquinas };
+  const Irreg = { resistencias, TIPOS, evaluar, restricciones, analizarTodo, esquinas };
   root.Irreg = Irreg;
   if (typeof module !== "undefined") module.exports = Irreg;
 })(typeof window !== "undefined" ? window : globalThis);

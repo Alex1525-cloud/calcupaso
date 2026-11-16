@@ -121,7 +121,20 @@
     const u = new Float64Array(B.ns + B.nm);
     for (let r = 0; r < B.ns; r++) { let s = y[r]; for (let j = 0; j < B.nm; j++) s -= B.X[j][r] * um[j]; u[r] = s; }
     u.set(um, B.ns);
+    u.f = f;
     return u;
+  }
+  // solo gravedad (CM y CV) por elemento: lo usa la revisión de piso débil
+  function gravedad(B) {
+    const { C, nodal } = cargasGravedad(B);
+    const uD = resolverGravedad(B, C.D, nodal.D), uL = resolverGravedad(B, C.L, nodal.L);
+    return { uD, uL, C, porElem: new Map(B.elems.filter(e => e.type !== "link").map(e => [e, { D: esfuerzos(e, fuerzasLocales(e, uD, C.D.get(e)), C.D.get(e)), L: esfuerzos(e, fuerzasLocales(e, uL, C.L.get(e)), C.L.get(e)) }])) };
+  }
+  /* Periodo vertical fundamental por Rayleigh con la deformada de la carga muerta: T = 2π·√(Σ m·u² / Σ F·u) */
+  function periodoVertical(B, u) {
+    let num = 0, den = 0;
+    for (let i = 0; i < B.ns; i++) { const F = -u.f[i]; if (!(F > 0) || i % 3) continue; const w = -u[i]; num += F / S.G * w * w; den += F * w; }
+    return den > 0 ? 2 * Math.PI * Math.sqrt(num / den) : 0;
   }
 
   const ue = (e, u) => e.map.map(l => l.reduce((a, t) => a + t.c * u[t.g], 0));
@@ -181,6 +194,11 @@
         o[D.d ? "SY" : "SX"] = res;
       });
     }
+    // sismo vertical (opcional): 2/3 del espectro horizontal con el periodo vertical; sus efectos son proporcionales a los de la CM
+    const Tv = periodoVertical(B, uD), Rv = Math.min(q.Rx, q.Ry);
+    const Cv = Tv < 0.2 * q.Tp ? 1 + 7.5 * Tv / q.Tp : E.factorC(Tv, q.Tp, q.TL, false);
+    const ev = 2 / 3 * q.Z * q.U * Cv * q.S / Rv;
+    if (r.params && r.params.vertical) out.forEach(o => { for (const dS of ["SX", "SY"]) for (const k in o[dS]) o[dS][k] = o[dS][k].map((v, i) => Math.hypot(v, ev * Math.abs(o.D[k][i]))); });
     if (q.dir30) out.forEach(o => { const x = o.SX, y = o.SY, nx = {}, ny = {}; for (const k in x) { nx[k] = x[k].map((v, i) => Math.hypot(v, 0.3 * y[k][i])); ny[k] = y[k].map((v, i) => Math.hypot(v, 0.3 * x[k][i])); } o.SX = nx; o.SY = ny; });
     // reacciones en la base (fuerzas que el apoyo da a cada columna o placa del piso 1)
     const reacc = new Map();
@@ -190,7 +208,7 @@
         MD: [o.D.M2[0], o.D.M3[0]], ML: [o.L.M2[0], o.L.M3[0]], MSX: [o.SX.M2[0], o.SX.M3[0]], MSY: [o.SY.M2[0], o.SY.M3[0]] });
     }
     const totD = [...reacc.values()].reduce((a, x) => a + x.D, 0), totL = [...reacc.values()].reduce((a, x) => a + x.L, 0);
-    return { elems: out, reacc, totD, totL, sinViga, combos: COMBOS };
+    return { elems: out, reacc, totD, totL, sinViga, combos: COMBOS, vertical: { Tv, Cv, ev, activo: !!(r.params && r.params.vertical) } };
   }
 
   // combinaciones E.060 (cap. 9): [nombre, fD, fL, fS, dirección del sismo]
@@ -209,7 +227,7 @@
     return { max: mx, min: mn };
   }
 
-  const Fuerzas = { calcular, envolvente, COMBOS, repartoLosa, feqLocal, NEST };
+  const Fuerzas = { calcular, gravedad, periodoVertical, envolvente, COMBOS, repartoLosa, feqLocal, NEST };
   root.Fuerzas = Fuerzas;
   if (typeof module !== "undefined") module.exports = Fuerzas;
 })(typeof window !== "undefined" ? window : globalThis);

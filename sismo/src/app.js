@@ -33,7 +33,7 @@
   }
 
   // ------------------------------------------------------------ modelo para el solver
-  const construirModelo = (s) => Plano.aModelo(Object.assign({}, s.plano, { losaTipo: s.losa }), s.pisos, s.fc, s.cargas, Asistente.factorCV(s.categoria, s.uso)).model;
+  const construirModelo = (s) => Object.assign(Plano.aModelo(Object.assign({}, s.plano, { losaTipo: s.losa }), s.pisos, s.fc, s.cargas, Asistente.factorCV(s.categoria, s.uso)).model, { pDelta: !!s.pDelta, fy: s.fy || 4200 });
   const cotas = (s) => { const z = [0]; for (let k = 0; k < s.pisos.n; k++) z.push(z[k] + (k ? s.pisos.h : s.pisos.h1)); return z; };
   function colTipica() {
     const cnt = {}; st.plano.columnas.forEach(c => { const k = c.b + "x" + c.h; cnt[k] = (cnt[k] || 0) + 1; });
@@ -42,10 +42,10 @@
   }
 
   // ------------------------------------------------------------ formulario
-  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
+  const CAMPOS = ["nombre", "uso", "zona", "suelo", "vs30", "categoria", "sistemaX", "sistemaY", "dir30", "pDelta", "vertical", "nPisos", "h1", "h", "colB", "colH", "colAng", "colForma", "colT", "losaTipo", "losaH", "cvEsc", "vigB", "vigH", "placaT", "fc", "fy", "qadm", "Df", "cm", "cmRoof", "cv", "cvRoof", "ejesX", "ejesY"];
   function aForm() {
     $("nombre").value = st.nombre; $("uso").value = st.uso; $("zona").value = st.zona; $("suelo").value = st.suelo; $("vs30").value = st.vs30 ?? "";
-    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30;
+    $("categoria").value = st.categoria; $("sistemaX").value = st.sistemaX; $("sistemaY").value = st.sistemaY; $("dir30").checked = !!st.dir30; $("pDelta").checked = !!st.pDelta; $("vertical").checked = !!st.vertical;
     $("ejesX").value = st.luces.x.join(", "); $("ejesY").value = st.luces.y.join(", ");
     $("nPisos").value = st.pisos.n; $("h1").value = st.pisos.h1; $("h").value = st.pisos.h;
     $("colB").value = st.secc.col[0]; $("colH").value = st.secc.col[1]; $("colAng").value = st.secc.colAng || 0;
@@ -62,7 +62,7 @@
     const prevUso = st.uso;
     st.nombre = $("nombre").value; st.uso = $("uso").value; st.zona = +$("zona").value; st.suelo = $("suelo").value;
     st.vs30 = $("vs30").value === "" ? null : num("vs30", null);
-    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked;
+    st.categoria = $("categoria").value; st.sistemaX = $("sistemaX").value; st.sistemaY = $("sistemaY").value; st.dir30 = $("dir30").checked; st.pDelta = $("pDelta").checked; st.vertical = $("vertical").checked;
     st.luces = { x: lista("ejesX", st.luces.x), y: lista("ejesY", st.luces.y) };
     st.pisos = { n: Math.max(1, Math.min(30, Math.round(num("nPisos", 4)))), h1: num("h1", 3), h: num("h", 2.8) };
     st.secc = { col: [num("colB", 0.4), num("colH", 0.4)], colAng: num("colAng", 0), colForma: $("colForma").value, colT: num("colT", 0.25), viga: [num("vigB", 0.25), num("vigH", 0.5)], placaT: num("placaT", 0.25) };
@@ -194,7 +194,7 @@
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
     if (window.DWGLector) return Promise.resolve(window.DWGLector);
-    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116g"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116h"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
   $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });
@@ -304,7 +304,7 @@
       try {
         const t = performance.now();
         const model = construirModelo(st);
-        const p = { norma: "2026", zona: st.zona, suelo: st.suelo, vs30: st.vs30, categoria: st.categoria, sistemaX: st.sistemaX, sistemaY: st.sistemaY, dir30: st.dir30 };
+        const p = { norma: "2026", zona: st.zona, suelo: st.suelo, vs30: st.vs30, categoria: st.categoria, sistemaX: st.sistemaX, sistemaY: st.sistemaY, dir30: st.dir30, vertical: !!st.vertical };
         const q0 = E030.parametros(p);
         if (q0.S == null) throw new Error(q0.notaSuelo);
         const r = Irreg.analizarTodo(model, p); r.params = p;
@@ -337,7 +337,7 @@
   function rediseno(r) {
     const cont = $("redCont"); if (!cont) return;
     const base = r.st, lim = r.q.derivaLim;
-    const correr = (plano) => Irreg.analizarTodo(Plano.aModelo(Object.assign({}, plano, { losaTipo: base.losa }), base.pisos, base.fc, base.cargas, Asistente.factorCV(base.categoria, base.uso)).model, r.params);
+    const correr = (plano) => Irreg.analizarTodo(construirModelo(Object.assign({}, base, { plano })), r.params);
     const tabla = (cambios) => `<div class="scroll"><table><thead><tr><th>Elemento</th><th>Ahora</th><th>Propuesta</th><th>Cant.</th></tr></thead><tbody>${cambios.map(c => `<tr><td>${c.elem}</td><td>${c.antes}</td><td><b>${c.despues}</b></td><td>${c.n}</td></tr>`).join("")}</tbody></table></div>`;
     const bloques = [], acciones = [];
     const accion = (txt, fn) => { acciones.push(fn); return `<button class="small primary-s" data-red="${acciones.length - 1}">${txt}</button>`; };
@@ -371,6 +371,8 @@
       const fz = Fuerzas.calcular(r);
       const d = Diseno.disenar(r, fz, { fc: r.st.fc, fy: r.st.fy || 4200, qadm: r.st.cim.qadm, Df: r.st.cim.Df, porticos: r.q.sistemaX === "PÓRTICOS" || r.q.sistemaY === "PÓRTICOS" });
       r.fuerzas = fz; r.diseno = d;
+      const vc = $("vertCont"), v = fz.vertical;
+      if (vc) vc.innerHTML = `<table><tbody><tr><td>Periodo vertical Tv (Rayleigh)</td><td>${f(v.Tv)} s</td></tr><tr><td>C vertical</td><td>${f(v.Cv, 2)}</td></tr><tr><td>Sv = 2/3·Z·U·C·S/R</td><td>${f(v.ev, 3)} g</td></tr></tbody></table><p class="aviso">${v.activo ? "Incluido en el diseño: a cada sismo horizontal se le suma ±" + f(100 * v.ev, 1) + "% de los efectos de la CM (combinados por raíz de suma de cuadrados)." : "No incluido. Si tienes volados o luces grandes, actívalo en el paso 1: sumaría ±" + f(100 * v.ev, 1) + "% de los efectos de la CM."}</p>`;
       const pisos = r.B.levels.map(L => L.name);
       const nF = (l) => l.filter(x => x.falla).length;
       const pest = [["vigas", `Vigas (${d.vigas.length})`, nF(d.vigas)], ["columnas", `Columnas (${d.columnas.length})`, nF(d.columnas)], ["placas", `Placas (${d.placas.length})`, nF(d.placas)], ["zapatas", `Cimentación (${d.zapatas.length})`, nF(d.zapatas)]].filter(x => x[0] !== "placas" || d.placas.length);
@@ -464,7 +466,18 @@
         <div class="scroll"><table><thead><tr><th>Irregularidad</th><th>Tipo</th><th>Factor</th><th>¿Hay?</th></tr></thead><tbody>
         ${r.irreg.lista.map(v => `<tr title="${v.detalle.join("; ").replace(/"/g, "'")}"><td>${v.nombre}</td><td>${v.tabla}</td><td>${v.factor}</td><td>${v.presente ? '<span class="tag warn">Sí</span>' : "No"}</td></tr>`).join("")}
         </tbody></table></div>
-        <p class="aviso">No evaluadas aún en el prototipo: piso débil (resistencia), sistemas no paralelos y diafragmas con secciones netas angostas (la discontinuidad por aberturas sí se revisa con los vacíos y escaleras de la planta).</p>
+        <p class="aviso">Pasa el cursor (o toca) una fila para ver el detalle. Piso débil: resistencia al corte estimada con acero mínimo por entrepiso (${r.resistencia ? r.resistencia.map(x => `${x.piso} ${f(x.X, 0)}/${f(x.Y, 0)} t`).join(" · ") : "—"}, X/Y). No evaluado: diafragmas con secciones netas angostas.</p>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="box"><h3>Efecto P-Δ (estabilidad)</h3><p class="explica">El peso del edificio sobre un piso que se desplaza genera momentos adicionales. Si el índice Q pasa de 0,10 hay que considerarlo en el análisis.</p>
+        <div class="scroll"><table><thead><tr><th>Piso</th><th>N encima (t)</th><th>Q en X</th><th>Q en Y</th></tr></thead><tbody>
+        ${r.estabilidad.slice().reverse().map(e => `<tr><td>${e.piso}</td><td>${f(e.N, 1)}</td><td class="${e.QX > 0.1 ? "bad" : ""}">${f(e.QX, 4)}</td><td class="${e.QY > 0.1 ? "bad" : ""}">${f(e.QY, 4)}</td></tr>`).join("")}
+        </tbody></table></div>
+        <p class="aviso">${st.pDelta ? "P-Δ incluido en este análisis (rigidez geométrica −N/h por entrepiso)." : r.Qmax > 0.1 ? "<b>Q > 0,10: activa «Incluir el efecto P-Δ» en el paso 1 y vuelve a analizar.</b>" : "Q ≤ 0,10 en todos los pisos: el efecto P-Δ es despreciable (puedes activarlo igual en el paso 1)."}</p>
+      </div>
+      <div class="box"><h3>Sismo vertical</h3><p class="explica">La E.030 permite usar 2/3 del espectro horizontal en la dirección vertical. Importa sobre todo en volados y vigas de gran luz.</p>
+        <div id="vertCont" class="hint">Se calcula con el diseño…</div>
       </div>
     </div>
     <div class="grid2">
