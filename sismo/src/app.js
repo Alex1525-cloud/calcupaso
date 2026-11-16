@@ -160,7 +160,10 @@
 
   // ------------------------------------------------------------ importar DXF
   let dxfLeido = null;
-  $("btnDxf").addEventListener("click", () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); });
+  const abrirDlgDxf = () => { $("dxfInfo").innerHTML = ""; $("btnDxfImportar").disabled = true; dxfLeido = null; $("dlgDxf").showModal(); };
+  $("btnDxf").addEventListener("click", abrirDlgDxf);
+  // botón de arriba: abre la ventana y de frente el selector de archivo
+  $("btnAbrirPlano").addEventListener("click", () => { abrirDlgDxf(); $("fileDxf").click(); });
   $("btnDxfCancelar").addEventListener("click", () => $("dlgDxf").close());
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
