@@ -10,9 +10,12 @@
     colegio: { nombre: "Centro educativo (aulas)", cv: 250, cat: "A2", nota: "E.020: aulas 250 kg/m², talleres 350, corredores 400. E.030: los colegios son esenciales (A2)." },
     hospital: { nombre: "Establecimiento de salud", cv: 300, cat: "A1", nota: "E.020: cuartos 200, salas de operación y laboratorios 300 kg/m². E.030: según su nivel puede ser A1 (con aislamiento en zonas 3 y 4) o A2." },
     comercio: { nombre: "Tiendas / comercio", cv: 500, cat: "C", nota: "E.020: tiendas 500 kg/m². Si es centro comercial grande, la E.030 lo pone en categoría B." },
+    deposito: { nombre: "Depósito / almacén", cv: 500, cat: "C", fcv: 0.8, nota: "E.020: almacenaje 500 kg/m² como mínimo (usa el peso real de lo almacenado si es mayor). E.030 art. 31: en depósitos el peso sísmico toma el 80% de la carga que se puede almacenar." },
     biblioteca: { nombre: "Biblioteca (salas de lectura)", cv: 300, cat: "B", nota: "E.020: salas de lectura 300, depósitos de libros 750 kg/m². E.030: las bibliotecas son categoría B." },
   };
 
+  // % de la carga viva en el peso sísmico (E.030-2026, art. 31): A y B 50%, C 25%, depósitos 80%; azoteas 25%
+  const factorCV = (categoria, uso) => (USOS[uso] && USOS[uso].fcv) || (categoria === "C" || categoria === "D" ? 0.25 : 0.5);
   const pesoAligerado = (h) => h <= 0.17 ? 280 : h <= 0.20 ? 300 : h <= 0.25 ? 350 : 420;
   const r05 = (x) => Math.ceil(x / 0.05 - 1e-9) * 0.05;
 
@@ -148,5 +151,5 @@
     irreg: "Las irregularidades reducen R con los factores Ia (altura) e Ip (planta): el edificio se diseña para más fuerza.",
   };
 
-  root.Asistente = { USOS, predim, despues, combinaciones, EXPLICA, pesoAligerado, placasNecesarias };
+  root.Asistente = { USOS, factorCV, predim, despues, combinaciones, EXPLICA, pesoAligerado, placasNecesarias };
 })(typeof window !== "undefined" ? window : globalThis);

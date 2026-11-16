@@ -206,3 +206,17 @@ details.porque summary { cursor: pointer; font-size: 12px; color: var(--accent);
 .palpop button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
 label.primary-s { background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-block; line-height: 1.45; margin: 0; }
 .logo { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* Sección «Cómo calcula» */
+.metodo { max-width: 1100px; margin: 24px auto 40px; padding: 0 16px; }
+.metodo h2 { font-size: 20px; margin: 0 0 6px; }
+.metodo-intro { color: var(--muted); margin: 0 0 12px; }
+.metodo details { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; }
+.metodo summary { font-weight: 700; cursor: pointer; color: var(--accent); }
+.metodo details[open] summary { margin-bottom: 8px; }
+.metodo ol.etapas { padding-left: 20px; margin: 0; } .metodo ol.etapas li { margin-bottom: 6px; }
+.metodo ul { padding-left: 20px; margin: 0; }
+.metodo table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.metodo th, .metodo td { border-bottom: 1px solid var(--border); padding: 5px 6px; text-align: left; }
+.metodo .scroll { overflow-x: auto; }
+@media print { .metodo { display: none; } }

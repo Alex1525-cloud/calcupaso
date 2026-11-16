@@ -113,7 +113,7 @@
   }
 
   // ---------------------------------------------------------------- plano -> modelo del solver
-  function aModelo(p, pisos, fc, cargas, catC) {
+  function aModelo(p, pisos, fc, cargas, catC) { // catC: fracción de CV en el peso sísmico (número) o true = categoría C
     const n = pisos.n;
     const nodes = {}, idx = new Map(); let k = 0;
     const key = (q) => Math.round(q[0] / TOL) + "," + Math.round(q[1] / TOL);
@@ -152,7 +152,7 @@
       model: {
         stories, E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
         loads: { cm: cargas.cm / 1000, cmRoof: cargas.cmRoof / 1000, cv: cargas.cv / 1000, cvRoof: cargas.cvRoof / 1000 },
-        massFactors: { cm: 1, cv: catC ? 0.25 : 0.5, cvRoof: 0.25 },
+        massFactors: { cm: 1, cv: typeof catC === "number" ? catC : (catC ? 0.25 : 0.5), cvRoof: 0.25 },
       }, avisos,
     };
   }
