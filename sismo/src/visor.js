@@ -82,10 +82,11 @@
       const [x1, y1] = nd[w.i], [x2, y2] = nd[w.j], t = sec[w.sec].b;
       const L = Math.hypot(x2 - x1, y2 - y1), h = z[k] - z[k - 1];
       const g = new THREE.BoxGeometry(L, h, t);
-      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: cMuro, transparent: true, opacity: 0.92 }));
+      const alb = sec[w.sec].mat === "alb";
+      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: alb ? new THREE.Color("#b5653a") : cMuro, transparent: true, opacity: 0.92 }));
       m.position.copy(P((x1 + x2) / 2, (y1 + y2) / 2, (z[k - 1] + z[k]) / 2));
       m.rotation.y = Math.atan2(y2 - y1, x2 - x1);
-      m.userData = { tipo: "muro", k }; solidos.add(m);
+      m.userData = { tipo: alb ? "alb" : "muro", k }; solidos.add(m);
       segs.push([x1, y1, k - 1, x1, y1, k], [x2, y2, k - 1, x2, y2, k], [x1, y1, k, x2, y2, k], [x1, y1, k - 1, x2, y2, k], [x2, y2, k - 1, x1, y1, k]);
     }
     for (const s of model.slabs) for (let k = s.p1; k <= s.p2; k++) {
@@ -145,7 +146,7 @@
     });
   };
   V.colorNormal = function () {
-    const c = { col: new THREE.Color(css("--col")), muro: new THREE.Color(css("--wall")), viga: new THREE.Color(css("--beam")), losa: new THREE.Color(css("--slab")) };
+    const c = { alb: new THREE.Color("#b5653a"), col: new THREE.Color(css("--col")), muro: new THREE.Color(css("--wall")), viga: new THREE.Color(css("--beam")), losa: new THREE.Color(css("--slab")) };
     solidos && solidos.children.forEach(m => { const t = m.userData && m.userData.tipo; if (c[t]) m.material.color.copy(c[t]); });
   };
 

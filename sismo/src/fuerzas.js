@@ -70,7 +70,7 @@
         const half = (kk) => { const cs = colAt[kk]; if (!cs) return 0; const c = sec[cs]; return 0.5 * (ux * c.b + uy * c.h); };
         f = Math.max(e.L - half(e.a) - half(e.b), 0) / e.L; e.ln = f * e.L;
       }
-      carga(C.D, e).w[2] -= A * gam * f;
+      carga(C.D, e).w[2] -= A * (s.gamma || gam) * f;
     }
     const porNivel = new Map();
     for (const e of B.elems) if (e.type !== "col") { const k = B.pts.get(e.a).k; if (!porNivel.has(k)) porNivel.set(k, []); porNivel.get(k).push(e); }

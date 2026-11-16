@@ -71,7 +71,7 @@
     // vigas
     for (const v of p.vigas) { const a = aPx(v.a), b = aPx(v.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "viga" + (sel.has(v.id) ? " sel" : ""), "stroke-width": Math.max(2, v.bw * vista.s) }); }
     // placas
-    for (const w of p.placas) { const a = aPx(w.a), b = aPx(w.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "placa" + (sel.has(w.id) ? " sel" : ""), "stroke-width": Math.max(3, w.t * vista.s) }); }
+    for (const w of p.placas) { const a = aPx(w.a), b = aPx(w.b); el("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: "placa" + (w.mat === "alb" ? " alb" : "") + (sel.has(w.id) ? " sel" : ""), "stroke-width": Math.max(3, w.t * vista.s) }); }
     // columnas
     for (const c of p.columnas) {
       const [cx, cy] = aPx([c.x, c.y]), bw = Math.max(5, c.b * vista.s), hh = Math.max(5, c.h * vista.s), cls = "columna" + (sel.has(c.id) ? " sel" : "");
@@ -249,7 +249,7 @@
       if (Pl.dist(inicio, q) < 0.05) return;
       const a = inicio.slice(), b = q.slice();
       if (herr === "viga") C.cambiar(p => p.vigas.push({ id: Pl.nuevoId("v"), a, b, bw: pr.vigB, h: pr.vigH }));
-      if (herr === "placa") C.cambiar(p => p.placas.push({ id: Pl.nuevoId("p"), a, b, t: pr.placaT }));
+      if (herr === "placa") C.cambiar(p => p.placas.push(Object.assign({ id: Pl.nuevoId("p"), a, b, t: pr.placaT }, pr.placaMat === "alb" ? { mat: "alb", fm: pr.fm || 65, vm: pr.vm || 8.1 } : {})));
       if (herr === "eje") { C.cambiar(p => p.ejes.push({ id: Pl.nuevoId("e"), nombre: pr.ejeNombre || "", a, b })); inicio = null; temporal(); return; }
       inicio = b; temporal();
     } else if (herr === "losa") {

@@ -39,7 +39,8 @@
         if (e.wall != null) {
           const Lw = s.b * 100, t = s.h * 100;
           const hm = (B.z[N] - B.z[e.k - 1]) * 100, rel = hm / Lw, ac = rel <= 1.5 ? 0.8 : rel >= 2 ? 0.53 : 0.8 - 0.27 * (rel - 1.5) / 0.5;
-          const Vn = Lw * t * (ac * Math.sqrt(fc) + 0.0025 * fy);
+          const al = Math.min(1, Math.max(1 / 3, Lw / (2 / 3 * hm)));
+          const Vn = s.mat === "alb" ? 0.5 * s.vm * al * t * Lw + 0.23 * Math.max(0, Pg) : Lw * t * (ac * Math.sqrt(fc) + 0.0025 * fy); // albañilería: Vm (E.070)
           V = { plano: Vn, wall: true }; // placas: resistencia al corte (Vc + Vs con 0,25%)
         } else {
           const n = Math.max(sl.circ ? 6 : sl.poly.length, Math.ceil(0.01 * Ag / 2.84)), pos = D.barrasContorno(sl.poly, 6, n, sl.circ);
