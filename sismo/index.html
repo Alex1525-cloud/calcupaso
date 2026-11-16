@@ -25,12 +25,17 @@
 <header class="top">
   <div class="brand"><span class="logo">◢◣</span> SismoPaso <small>análisis sísmico E.030-2026 · prototipo educativo</small></div>
   <div class="top-actions">
-    <button id="btnAbrirPlano" class="primary-s" title="Abrir un plano de AutoCAD o Civil 3D (.dwg o .dxf)">Abrir plano DWG</button>
+    <label class="primary-s file" title="Abrir un plano de AutoCAD o Civil 3D (.dwg o .dxf)">Abrir plano DWG<input id="filePlanoTop" type="file" accept=".dwg,.dxf"></label>
     <button id="btnEjemplo" class="ghost">Cargar ejemplo</button>
     <button id="btnGuardar" class="ghost">Guardar</button>
     <label class="ghost file" title="Abrir un proyecto guardado (.json)">Abrir proyecto<input id="fileAbrir" type="file" accept=".json"></label>
     <button id="btnInforme" class="ghost">Informe (PDF)</button>
     <button id="btnTema" class="ghost" title="Tema claro u oscuro">◐</button>
+    <div class="palwrap"><button id="palbtn" class="palbtn" aria-expanded="false" aria-label="Elegir colores" title="Colores"><i></i></button>
+      <div class="palpop" id="palpop" hidden>
+        <button data-pal="azul"><i></i>Azul</button><button data-pal="rosa"><i></i>Rosado</button><button data-pal="rojo"><i></i>Rojo</button>
+        <button data-pal="violeta"><i></i>Violeta</button><button data-pal="verde"><i></i>Verde</button><button data-pal="negro"><i></i>Negro</button>
+      </div></div>
   </div>
 </header>
 

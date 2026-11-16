@@ -153,7 +153,7 @@ details.porque summary { cursor: pointer; font-size: 12px; color: var(--accent);
 .informe { display: none; }
 @media (max-width: 900px) {
   .brand small { display: none; }
-  .top-actions button.ghost, .top-actions label.ghost, .top-actions button.primary-s { padding: 4px 8px; font-size: 12px; }
+  .top-actions button.ghost, .top-actions label.ghost, .top-actions label.primary-s { padding: 4px 8px; font-size: 12px; }
   .layout { grid-template-columns: 1fr; }
   .panel { border-right: none; border-bottom: 1px solid var(--border); }
   .grid2 { grid-template-columns: 1fr; }
@@ -166,3 +166,43 @@ details.porque summary { cursor: pointer; font-size: 12px; color: var(--accent);
   .informe h1 { font-size: 18pt; } .informe h2 { font-size: 13pt; margin-top: 14pt; }
   .informe .msg { break-inside: avoid; }
 }
+
+/* Paletas de color (como en CalcuPaso): data-pal en <html>; el claro/oscuro sigue con data-theme */
+:root { --accent2: #7c3aed; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="azul"] { --accent:#4c8dff;--accent2:#b79cff;--bg:#0f141b;--surface:#171e27;--surface2:#1f2833;--info-bg:#15263f;--col:#6f94d0;--accent-ink:#ffffff } }
+:root[data-theme="dark"][data-pal="azul"] { --accent:#4c8dff;--accent2:#b79cff;--bg:#0f141b;--surface:#171e27;--surface2:#1f2833;--info-bg:#15263f;--col:#6f94d0;--accent-ink:#ffffff }
+.palpop [data-pal="azul"] i { background: linear-gradient(135deg, #1f6feb, #7c3aed); }
+:root[data-pal="rosa"] { --accent:#db2777;--accent2:#f97316;--bg:#fdf5f9;--info-bg:#fce7f3;--col:#b34d7f;--accent-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="rosa"] { --accent:#f472b6;--accent2:#fdba74;--bg:#170d13;--surface:#22141d;--surface2:#2c1a26;--info-bg:#3a1b2d;--col:#e07aae;--accent-ink:#170d13 } }
+:root[data-theme="dark"][data-pal="rosa"] { --accent:#f472b6;--accent2:#fdba74;--bg:#170d13;--surface:#22141d;--surface2:#2c1a26;--info-bg:#3a1b2d;--col:#e07aae;--accent-ink:#170d13 }
+.palpop [data-pal="rosa"] i { background: linear-gradient(135deg, #db2777, #f97316); }
+:root[data-pal="rojo"] { --accent:#dc2626;--accent2:#ea580c;--bg:#fcf6f5;--info-bg:#fee8e6;--col:#b04a4a;--accent-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="rojo"] { --accent:#f87171;--accent2:#fdba74;--bg:#170d0d;--surface:#231414;--surface2:#2e1a1a;--info-bg:#3b1c1c;--col:#e07b7b;--accent-ink:#170d0d } }
+:root[data-theme="dark"][data-pal="rojo"] { --accent:#f87171;--accent2:#fdba74;--bg:#170d0d;--surface:#231414;--surface2:#2e1a1a;--info-bg:#3b1c1c;--col:#e07b7b;--accent-ink:#170d0d }
+.palpop [data-pal="rojo"] i { background: linear-gradient(135deg, #dc2626, #ea580c); }
+:root[data-pal="violeta"] { --accent:#7c3aed;--accent2:#db2777;--bg:#f7f5fd;--info-bg:#f1eafe;--col:#6c55b0;--accent-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="violeta"] { --accent:#b79cff;--accent2:#f472b6;--bg:#110e1d;--surface:#1b172e;--surface2:#241f3b;--info-bg:#2a2347;--col:#a08ce0;--accent-ink:#110e1d } }
+:root[data-theme="dark"][data-pal="violeta"] { --accent:#b79cff;--accent2:#f472b6;--bg:#110e1d;--surface:#1b172e;--surface2:#241f3b;--info-bg:#2a2347;--col:#a08ce0;--accent-ink:#110e1d }
+.palpop [data-pal="violeta"] i { background: linear-gradient(135deg, #7c3aed, #db2777); }
+:root[data-pal="verde"] { --accent:#059669;--accent2:#0284c7;--bg:#f2f8f6;--info-bg:#e1f5ec;--col:#3f8a6f;--accent-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="verde"] { --accent:#34d399;--accent2:#38bdf8;--bg:#0a1613;--surface:#11221d;--surface2:#172d26;--info-bg:#173328;--col:#5cc49c;--accent-ink:#0a1613 } }
+:root[data-theme="dark"][data-pal="verde"] { --accent:#34d399;--accent2:#38bdf8;--bg:#0a1613;--surface:#11221d;--surface2:#172d26;--info-bg:#173328;--col:#5cc49c;--accent-ink:#0a1613 }
+.palpop [data-pal="verde"] i { background: linear-gradient(135deg, #059669, #0284c7); }
+:root[data-pal="negro"] { --accent:#18181b;--accent2:#52525b;--bg:#f5f5f6;--info-bg:#ececef;--col:#4b4b55;--accent-ink:#ffffff }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])[data-pal="negro"] { --accent:#f4f4f5;--accent2:#a1a1aa;--bg:#0d0d0f;--surface:#18181b;--surface2:#222226;--info-bg:#26262b;--col:#a1a1aa;--accent-ink:#18181b } }
+:root[data-theme="dark"][data-pal="negro"] { --accent:#f4f4f5;--accent2:#a1a1aa;--bg:#0d0d0f;--surface:#18181b;--surface2:#222226;--info-bg:#26262b;--col:#a1a1aa;--accent-ink:#18181b }
+.palpop [data-pal="negro"] i { background: linear-gradient(135deg, #18181b, #52525b); }
+.palwrap { position: relative; display: inline-block; }
+.palbtn { width: 32px; height: 32px; border-radius: 50%; padding: 0; display: grid; place-items: center; background: transparent; }
+.palbtn i { width: 18px; height: 18px; border-radius: 50%; display: block; background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+.palpop { position: absolute; right: 0; top: calc(100% + 6px); background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 12px 32px -8px rgba(0,0,0,.25); padding: 10px; display: grid; grid-template-columns: repeat(3, 62px); gap: 4px; z-index: 50; }
+.palpop[hidden] { display: none; }
+.palpop button { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--muted);
+  background: none; border: 0; border-radius: 10px; padding: 6px 2px; }
+.palpop button:hover { background: var(--surface2); }
+.palpop i { width: 28px; height: 28px; border-radius: 50%; display: block; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--border); }
+.palpop button[aria-pressed="true"] { color: var(--text); }
+.palpop button[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+label.primary-s { background: var(--accent); color: var(--accent-ink); border-radius: 8px; padding: 6px 12px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-block; line-height: 1.45; margin: 0; }
+.logo { background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
