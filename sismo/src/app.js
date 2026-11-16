@@ -25,7 +25,7 @@
   }
 
   // ------------------------------------------------------------ modelo para el solver
-  const construirModelo = (s) => Plano.aModelo(s.plano, s.pisos, s.fc, s.cargas, s.categoria === "C").model;
+  const construirModelo = (s) => Plano.aModelo(s.plano, s.pisos, s.fc, s.cargas, Asistente.factorCV(s.categoria, s.uso)).model;
   const cotas = (s) => { const z = [0]; for (let k = 0; k < s.pisos.n; k++) z.push(z[k] + (k ? s.pisos.h : s.pisos.h1)); return z; };
   function colTipica() {
     const cnt = {}; st.plano.columnas.forEach(c => { const k = c.b + "x" + c.h; cnt[k] = (cnt[k] || 0) + 1; });
@@ -71,7 +71,7 @@
     if (u.cat !== st.categoria) h += `<br>Ojo: para «${u.nombre}» lo usual es la categoría ${u.cat}.`;
     if (st.categoria === "A1" && st.zona >= 3) h += "<br>La categoría A1 en zonas 3 y 4 requiere aislamiento sísmico.";
     $("hintProyecto").innerHTML = h;
-    $("hintCargas").innerHTML = `${u.nota}<br>CM sugerida: losa aligerada (≈300 kg/m² para h = 0,20) + piso terminado 100 + tabiquería 100. Para el peso sísmico se toma 100% CM + ${st.categoria === "C" ? 25 : 50}% CV (25% en azotea), E.030 art. 31.`;
+    $("hintCargas").innerHTML = `${u.nota}<br>CM sugerida: losa aligerada (≈300 kg/m² para h = 0,20) + piso terminado 100 + tabiquería 100. Para el peso sísmico se toma 100% CM + ${Math.round(100 * Asistente.factorCV(st.categoria, st.uso))}% CV (25% en azotea), E.030 art. 31.`;
     const p = st.plano;
     $("hintPlano").innerHTML = `${p.columnas.length} columnas · ${p.vigas.length} vigas · ${p.placas.length} placas · ${p.losas.length} losas`;
   }
@@ -169,7 +169,7 @@
   let cargaDwg = null;
   function lectorDwg() { // el lector DWG (~1 MB) se descarga solo la primera vez que se abre un DWG
     if (window.DWGLector) return Promise.resolve(window.DWGLector);
-    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116d"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
+    if (!cargaDwg) cargaDwg = new Promise((ok, mal) => { const sc = document.createElement("script"); sc.src = "lib/dwg.js?v=20261116e"; sc.onload = () => ok(window.DWGLector); sc.onerror = () => { cargaDwg = null; mal(new Error("No se pudo descargar el lector de DWG. Revisa tu conexión.")); }; document.head.appendChild(sc); });
     return cargaDwg;
   }
   $("fileDxf").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) leerArchivoPlano(f); });
@@ -314,7 +314,7 @@
     const okX = r.derivaMax.X <= lim, okY = r.derivaMax.Y <= lim;
     let h = `<div class="cards">
       ${tarjeta("Periodo T1", f(r.modes[0].T) + " s", `Tx = ${f(dX.T)} s · Ty = ${f(dY.T)} s`)}
-      ${tarjeta("Peso sísmico P", f(r.P, 1) + " t", `${r.B.N} pisos · ${f(r.P / r.B.N, 1)} t por piso`)}
+      ${tarjeta("Peso sísmico P", f(r.P, 1) + " t", `${r.B.N} pisos · ${f(r.P / r.B.N, 1)} t por piso · 100% CM + ${Math.round(100 * Asistente.factorCV(st.categoria, st.uso))}% CV (azotea 25%)`)}
       ${tarjeta("Cortante basal X", f(dX.Vest, 1) + " t", `estático · dinámico ${f(dX.Vdin, 1)} t`)}
       ${tarjeta("Cortante basal Y", f(dY.Vest, 1) + " t", `estático · dinámico ${f(dY.Vdin, 1)} t`)}
       ${tarjeta("Deriva máx. X", f(r.derivaMax.X, 4), okX ? `cumple (≤ ${lim})` : `NO cumple (> ${lim})`, okX ? "ok" : "bad")}

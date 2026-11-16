@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116d">
+<link rel="stylesheet" href="src/app.css?v=20261116e">
 </head>
 <body>
 <header class="top">
@@ -190,6 +190,55 @@
   </section>
 </main>
 
+<section class="metodo" id="metodo">
+  <h2>¿Cómo calcula SismoPaso?</h2>
+  <p class="metodo-intro">Herramienta educativa y de predimensionamiento. Hace un <b>análisis sísmico estático y dinámico modal espectral</b> según la <b>E.030-2026</b> (RM 183-2026-VIVIENDA), con cargas de la <b>E.020</b> y combinaciones de la <b>E.060</b>. Todo se calcula en tu navegador con un motor propio, validado contra ETABS 22.</p>
+
+  <details open><summary>1. Etapas del análisis</summary>
+    <ol class="etapas">
+      <li><b>Modelo.</b> Columnas, vigas y placas como elementos de pórtico 3D (con deformación por corte). Concreto con E<sub>c</sub> = 15 000·√f'c, ν = 0,20 y γ = 2,4 t/m³. Secciones brutas (art. 30.2). Base empotrada. Cada techo es un <b>diafragma rígido</b> con 3 grados de libertad: X, Y y giro.</li>
+      <li><b>Peso sísmico P</b> (art. 31): 100% de la carga muerta + un porcentaje de la carga viva según la categoría. Es el 50% en A y B, el 25% en C, el 80% en depósitos y el 25% en azoteas. El peso propio de vigas y columnas se calcula solo, y en las vigas se usa la luz libre, igual que ETABS.</li>
+      <li><b>Parámetros:</b> Z según la zona, U según la categoría (Tabla 7), S, Tp y TL según el suelo y el Vs30 (Tablas 4 y 5). C con el tramo nuevo para T &lt; 0,2·Tp (art. 18). R = R0·Ia·Ip, con R0 según el sistema (art. 20 y Tabla 10) y las irregularidades (Tablas 11 y 12).</li>
+      <li><b>Análisis estático</b> (arts. 33.2 a 36): V = Z·U·C·S/R·P, con C/R ≥ 0,11. Las fuerzas se reparten en altura con el exponente k.</li>
+      <li><b>Análisis modal:</b> se calculan todos los modos (3 por piso) con su masa participativa, y se verifica que la suma llegue al 90%.</li>
+      <li><b>Análisis espectral:</b> Sa = Z·U·C·S/R·g en cada modo. Los modos se combinan con <b>CQC</b> al 5% de amortiguamiento.</li>
+      <li><b>Escalamiento:</b> si el cortante dinámico es menor que el 80% del estático (90% si es irregular), se indica el factor para escalar las fuerzas de diseño (art. 44).</li>
+      <li><b>Excentricidad accidental:</b> en cada piso se aplica un momento torsor de la fuerza del piso × <b>0,05 × la dimensión perpendicular al sismo</b> (arts. 37 y 45). Se suma en valor absoluto, que es el caso más desfavorable (+ o −).</li>
+      <li><b>Derivas:</b> se miden en cada columna y en cada extremo de placa, no solo en el centro de masa. Se pasan a inelásticas con 0,75·R (regular) o 0,85·R (irregular) y se comparan con el límite (art. 50 y Tabla 14; 0,007 en concreto armado). Opcionalmente se usa la combinación direccional 100% + 30% (arts. 33.3 y 43).</li>
+      <li><b>Irregularidades y sistema:</b> se revisan piso blando, masa, geometría vertical, discontinuidad, torsión (Δmáx/Δprom &gt; 1,3 y &gt; 1,5) y esquinas entrantes. Se aplican las restricciones de la Tabla 13 y se define el sistema real (pórticos, dual o muros) según qué parte del cortante toman las placas. Si cambian Ia o Ip, el cálculo se repite hasta que se estabilice.</li>
+      <li><b>Combinaciones de diseño</b> (E.060, art. 9.2): 1,4CM + 1,7CV; 1,25(CM + CV) ± S; 0,9CM ± S. Con 100% + 30%, S es SX + 0,3SY y SY + 0,3SX.</li>
+    </ol>
+    <p class="hint">Las combinaciones de carga sirven para <b>diseñar</b> vigas, columnas y placas. El análisis sísmico en sí usa el peso sísmico (paso 2), no las combinaciones. Por eso SismoPaso las muestra listas para el diseño.</p>
+  </details>
+
+  <details><summary>2. Validación contra ETABS 22 y error esperado</summary>
+    <p>Se modelaron los mismos 6 edificios en ETABS 22 y en SismoPaso (zona 4, suelo S2, f'c 210, E.030-2026):</p>
+    <div class="scroll"><table class="wrap"><thead><tr><th>Caso</th><th>T1 (s) Sismo / ETABS</th><th>V dinámico X (t)</th><th>Deriva máx.</th><th>Diferencia</th></tr></thead><tbody>
+      <tr><td>Pórticos 60×60, 4 pisos</td><td>0,382 / 0,382</td><td>104,10 / 104,10</td><td>0,0055 / 0,0055</td><td>&lt; 0,5%</td></tr>
+      <tr><td>Pórticos 40×40</td><td>0,610 / 0,610</td><td>84,67 / 84,70</td><td>0,0127 / 0,0127</td><td>&lt; 0,5%</td></tr>
+      <tr><td>Planta en L (esquinas entrantes)</td><td>0,563 / 0,563</td><td>59,05 / 59,05</td><td>0,0147 / 0,0147</td><td>&lt; 0,5%</td></tr>
+      <tr><td>Torsión extrema (placas en un borde)</td><td>0,612 / 0,611</td><td>179,45 / 179,69</td><td>0,0148 / 0,0148</td><td>&lt; 0,5%</td></tr>
+      <tr><td>Muros de concreto</td><td>0,177 / 0,172</td><td>125,71 / 124,15</td><td>0,0011 / 0,0011</td><td>≈ 3% (T)</td></tr>
+      <tr><td>Dual (pórticos + placas)</td><td>0,174 / 0,169</td><td>110,83 / 109,39</td><td>0,0010 / 0,0010</td><td>≈ 3% (T)</td></tr>
+    </tbody></table></div>
+    <p><b>Error esperado:</b> en <b>pórticos</b>, menos de 0,5% en periodos, peso, cortantes y derivas. El peso sísmico y el cortante estático coinciden exacto. En edificios con <b>placas</b>, el periodo sale cerca de 3% mayor y el cortante dinámico cerca de 1% mayor. Esto se debe a que SismoPaso modela cada placa como una "columna ancha" con brazos rígidos, y ETABS la modela con elementos lámina (shell).</p>
+  </details>
+
+  <details><summary>3. Qué no hace todavía (límites)</summary>
+    <ul>
+      <li>Placas con elemento lámina (shell). Hoy se usa la columna ancha, con la diferencia de ~3% indicada arriba.</li>
+      <li>Diafragma flexible o con aberturas grandes. Se asume diafragma rígido en todos los pisos.</li>
+      <li>Plantas distintas por piso: todos los pisos usan la misma planta.</li>
+      <li>Fuerzas internas por elemento y diseño E.060 de vigas, columnas y placas. Por ahora solo se dan las combinaciones.</li>
+      <li>Piso débil por resistencia, sistemas no paralelos, efecto P-Δ, sismo vertical, interacción suelo-estructura y muros de albañilería.</li>
+    </ul>
+  </details>
+
+  <details><summary>4. ¿Debo verificar con ETABS?</summary>
+    <p>Para <b>aprender, predimensionar y comparar alternativas</b> SismoPaso es suficiente, y cada resultado cita su artículo de la norma. Para un <b>expediente técnico o una obra real</b>, el análisis debe verificarse con un programa comercial (ETABS, SAP2000 u otro) y debe firmarlo un ingeniero civil colegiado y habilitado. Eso es aún más importante si el edificio tiene placas, irregularidades fuertes o alguno de los límites de arriba.</p>
+  </details>
+</section>
+
 <div id="informe" class="informe"></div>
 
 <dialog id="dlgDxf" class="dlg">
@@ -206,16 +255,16 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116d"></script>
-<script src="lib/OrbitControls.js?v=20261116d"></script>
-<script src="src/solver.js?v=20261116d"></script>
-<script src="src/e030.js?v=20261116d"></script>
-<script src="src/irreg.js?v=20261116d"></script>
-<script src="src/plano.js?v=20261116d"></script>
-<script src="src/dxf.js?v=20261116d"></script>
-<script src="src/cad.js?v=20261116d"></script>
-<script src="src/asistente.js?v=20261116d"></script>
-<script src="src/visor.js?v=20261116d"></script>
-<script src="src/app.js?v=20261116d"></script>
+<script src="lib/three.min.js?v=20261116e"></script>
+<script src="lib/OrbitControls.js?v=20261116e"></script>
+<script src="src/solver.js?v=20261116e"></script>
+<script src="src/e030.js?v=20261116e"></script>
+<script src="src/irreg.js?v=20261116e"></script>
+<script src="src/plano.js?v=20261116e"></script>
+<script src="src/dxf.js?v=20261116e"></script>
+<script src="src/cad.js?v=20261116e"></script>
+<script src="src/asistente.js?v=20261116e"></script>
+<script src="src/visor.js?v=20261116e"></script>
+<script src="src/app.js?v=20261116e"></script>
 </body>
 </html>
