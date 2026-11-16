@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116e">
+<link rel="stylesheet" href="src/app.css?v=20261116f">
 </head>
 <body>
 <header class="top">
@@ -115,6 +115,10 @@
         <label>Giro (°) <input id="colAng" type="number" step="5"></label>
       </div>
       <div class="row3">
+        <label>Forma de columna <select id="colForma"><option value="rect">Rectangular</option><option value="circ">Circular (D = b)</option><option value="L">En L</option><option value="T">En T</option></select></label>
+        <label>Espesor del ala t (m) <input id="colT" type="number" step="0.05"></label>
+      </div>
+      <div class="row3">
         <label>Viga b (m) <input id="vigB" type="number" step="0.05"></label>
         <label>Viga h (m) <input id="vigH" type="number" step="0.05"></label>
         <label>Placa t (m) <input id="placaT" type="number" step="0.05"></label>
@@ -126,14 +130,23 @@
     </section>
 
     <section class="step hidden" data-step="4">
+      <h3>Losa</h3>
+      <div class="row">
+        <label>Tipo de losa <select id="losaTipo"></select></label>
+        <label>Espesor h (m) <input id="losaH" type="number" step="0.01"></label>
+      </div>
+      <div class="hint" id="hintLosa"></div>
       <h3>Cargas (E.020)</h3>
       <div class="row">
-        <label>CM pisos (kg/m²) <input id="cm" type="number" step="10"></label>
-        <label>CM azotea (kg/m²) <input id="cmRoof" type="number" step="10"></label>
+        <label>CM adicional pisos (kg/m²) <input id="cm" type="number" step="10" title="Acabados + tabiquería (el peso de la losa se suma solo)"></label>
+        <label>CM adicional azotea (kg/m²) <input id="cmRoof" type="number" step="10"></label>
       </div>
       <div class="row">
         <label>CV pisos (kg/m²) <input id="cv" type="number" step="10"></label>
         <label>CV azotea (kg/m²) <input id="cvRoof" type="number" step="10"></label>
+      </div>
+      <div class="row">
+        <label>CV escaleras (kg/m²) <input id="cvEsc" type="number" step="10"></label>
       </div>
       <div class="hint" id="hintCargas"></div>
     </section>
@@ -255,16 +268,17 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116e"></script>
-<script src="lib/OrbitControls.js?v=20261116e"></script>
-<script src="src/solver.js?v=20261116e"></script>
-<script src="src/e030.js?v=20261116e"></script>
-<script src="src/irreg.js?v=20261116e"></script>
-<script src="src/plano.js?v=20261116e"></script>
-<script src="src/dxf.js?v=20261116e"></script>
-<script src="src/cad.js?v=20261116e"></script>
-<script src="src/asistente.js?v=20261116e"></script>
-<script src="src/visor.js?v=20261116e"></script>
-<script src="src/app.js?v=20261116e"></script>
+<script src="lib/three.min.js?v=20261116f"></script>
+<script src="lib/OrbitControls.js?v=20261116f"></script>
+<script src="src/solver.js?v=20261116f"></script>
+<script src="src/e030.js?v=20261116f"></script>
+<script src="src/irreg.js?v=20261116f"></script>
+<script src="src/plano.js?v=20261116f"></script>
+<script src="src/dxf.js?v=20261116f"></script>
+<script src="src/cad.js?v=20261116f"></script>
+<script src="src/asistente.js?v=20261116f"></script>
+<script src="src/rediseno.js?v=20261116f"></script>
+<script src="src/visor.js?v=20261116f"></script>
+<script src="src/app.js?v=20261116f"></script>
 </body>
 </html>

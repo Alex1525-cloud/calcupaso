@@ -167,7 +167,7 @@
     const addMass = (k, m, x, y) => { const L = lv[k]; L.m += m; L.Sx += m * x; L.Sy += m * y; L.Ip += m * (x * x + y * y); };
     const pp = { total: 0 };
     for (const e of elems) {
-      const s = sec[e.sec], A = s.b * s.h;
+      const s = sec[e.sec], A = s.props ? s.props.A : s.b * s.h;
       const pa = pts.get(e.a), pb = pts.get(e.b);
       if (e.type === "link") continue;
       if (e.type === "col") {
@@ -197,7 +197,7 @@
       const P = polyProps(poly);
       for (let k = s.p1; k <= s.p2; k++) {
         const roof = !cover.has(slabKey(s) + "#" + (k + 1));
-        const cm = (roof ? ld.cmRoof : ld.cm) + (s.cm || 0), cv = (roof ? ld.cvRoof : ld.cv) + (s.cv || 0);
+        const cm = (roof ? ld.cmRoof : ld.cm) + (s.cm || 0), cv = s.cvAbs != null ? s.cvAbs : (roof ? ld.cvRoof : ld.cv) + (s.cv || 0);
         cargas.CM += cm * P.A; cargas[roof ? "CVT" : "CV"] += cv * P.A;
         const w = cm * mf.cm + cv * (roof ? mf.cvRoof : mf.cv); // t/m² que entra al peso sísmico
         const m = w / G;
@@ -262,7 +262,8 @@
       let A = s.b * s.h, Iy, Iz, J = torsionJ(s.b, s.h);
       if (e.type === "col") { Iz = s.h * s.b ** 3 / 12; Iy = s.b * s.h ** 3 / 12; } // flexión según X usa Iz
       else { Iy = s.b * s.h ** 3 / 12; Iz = s.h * s.b ** 3 / 12; }
-      const As = (s.wall ? 1 : 5 / 6) * A; // placa: ETABS (lámina) usa el área completa a corte
+      let As = (s.wall ? 1 : 5 / 6) * A; // placa: ETABS (lámina) usa el área completa a corte
+      if (s.props && e.type === "col") ({ A, Iy, Iz, J, As } = s.props); // columnas circulares, en L o en T
       const Ee = s.rigid ? E * 100 : E, Ge = s.rigid ? Gm * 100 : Gm;
       // zonas rígidas
       let a0 = 0, b0 = 0;
@@ -389,6 +390,15 @@
     return out;
   }
 
-  root.Solver = { G, fullDisp, elemForces, buildModel, modal, cqc, solveLateral, pointDisp, driftPoints, polyProps, torsionJ, jacobiEigen, Band };
+  /* Centro de masa y centro de rigidez de cada piso (como ETABS: carga unitaria solo en ese piso).
+     Una fuerza que pasa por el CR no hace girar el piso. */
+  function centros(B) {
+    return B.levels.map((L, k) => {
+      const F = (i) => { const f = new Float64Array(B.nm); f[3 * k + i] = 1; return solveLateral(B, f); };
+      const ux = F(0), uy = F(1), ut = F(2), tt = ut[3 * k + 2];
+      return { piso: L.name, xcm: L.xc, ycm: L.yc, xcr: L.xc - uy[3 * k + 2] / tt, ycr: L.yc + ux[3 * k + 2] / tt, Lx: L.Lx, Ly: L.Ly };
+    });
+  }
+  root.Solver = { G, centros, fullDisp, elemForces, buildModel, modal, cqc, solveLateral, pointDisp, driftPoints, polyProps, torsionJ, jacobiEigen, Band };
   if (typeof module !== "undefined") module.exports = root.Solver;
 })(typeof window !== "undefined" ? window : globalThis);

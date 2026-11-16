@@ -49,7 +49,20 @@
     const cCol = new THREE.Color(css("--col")), cViga = new THREE.Color(css("--beam")), cMuro = new THREE.Color(css("--wall")), cLosa = new THREE.Color(css("--slab"));
     for (const c of model.columns) for (let k = c.p1; k <= c.p2; k++) {
       const [x, y] = nd[c.node], s = sec[c.sec];
-      const m = caja(P(x, y, z[k - 1]), P(x, y, z[k]), s.b, s.h, cCol, 1);
+      let m;
+      if (s.forma === "circ") {
+        m = new THREE.Mesh(new THREE.CylinderGeometry(s.b / 2, s.b / 2, z[k] - z[k - 1], 24), new THREE.MeshLambertMaterial({ color: cCol }));
+        m.position.copy(P(x, y, (z[k - 1] + z[k]) / 2));
+      } else if (s.poly) { // columna en L o T: contorno extruido, girado como en planta
+        const a = (c.angDib || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+        const sh = new THREE.Shape(s.poly.map(([u, v]) => new THREE.Vector2(u * co - v * si, u * si + v * co)));
+        const g = new THREE.ExtrudeGeometry(sh, { depth: z[k] - z[k - 1], bevelEnabled: false });
+        m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: cCol }));
+        m.rotation.x = -Math.PI / 2; m.position.set(x, z[k - 1], -y);
+      } else {
+        m = caja(P(x, y, z[k - 1]), P(x, y, z[k]), s.b, s.h, cCol, 1);
+        if (c.ang) m.rotateOnWorldAxis(new THREE.Vector3(0, 1, 0), c.ang * Math.PI / 180);
+      }
       m.userData = { tipo: "col", k }; solidos.add(m);
       segs.push([x, y, k - 1, x, y, k]);
     }
@@ -79,7 +92,8 @@
       const pts = s.nodes.map(n => nd[n]);
       const sh = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)));
       const g = new THREE.ShapeGeometry(sh);
-      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: cLosa, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false }));
+      const esc = s.tipo === "escalera";
+      const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: esc ? new THREE.Color(css("--warn")) : cLosa, transparent: true, opacity: esc ? 0.45 : 0.28, side: THREE.DoubleSide, depthWrite: false }));
       m.rotation.x = -Math.PI / 2; m.position.y = z[k];
       m.userData = { tipo: "losa", k }; solidos.add(m);
     }

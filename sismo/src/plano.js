@@ -113,12 +113,71 @@
   }
 
   // ---------------------------------------------------------------- plano -> modelo del solver
+
+  /* ---------- formas de columna y tipos de losa ---------- */
+  // Contorno de la columna en ejes locales (u en la dirección de b, v en la de h), centrado en su centroide
+  function contornoColumna(c) {
+    const b = c.b, h = c.h, t = Math.min(c.t || 0.25, b, h), f = c.forma || "rect";
+    let q;
+    if (f === "circ") { q = []; for (let i = 0; i < 32; i++) { const a = 2 * Math.PI * i / 32; q.push([b / 2 * Math.cos(a), b / 2 * Math.sin(a)]); } return q; }
+    if (f === "L") q = [[0, 0], [b, 0], [b, t], [t, t], [t, h], [0, h]];
+    else if (f === "T") q = [[(b - t) / 2, 0], [(b + t) / 2, 0], [(b + t) / 2, h - t], [b, h - t], [b, h], [0, h], [0, h - t], [(b - t) / 2, h - t]];
+    else q = [[0, 0], [b, 0], [b, h], [0, h]];
+    const [cx, cy] = centroide(q);
+    return q.map(([u, v]) => [u - cx, v - cy]);
+  }
+  const jRect = (a, b) => { const x = Math.max(a, b), y = Math.min(a, b); return x * y ** 3 * (1 / 3 - 0.21 * (y / x) * (1 - (y / x) ** 4 / 12)); };
+  /* Propiedades para el motor: área, inercias principales (Iz: rigidez en la dirección de b girada phi grados), J y área de corte */
+  function propsColumna(c) {
+    const f = c.forma || "rect", b = c.b, h = c.h, t = Math.min(c.t || 0.25, b, h);
+    if (f === "rect") return null; // el motor usa b·h directamente
+    if (f === "circ") { const A = Math.PI * b * b / 4, I = Math.PI * b ** 4 / 64; return { A, Iz: I, Iy: I, J: 2 * I, As: 0.9 * A, phi: 0 }; }
+    const q = contornoColumna(c);
+    let A = 0, Suu = 0, Svv = 0, Suv = 0; // ∫u², ∫v², ∫uv respecto al centroide
+    for (let i = 0; i < q.length; i++) {
+      const [x0, y0] = q[i], [x1, y1] = q[(i + 1) % q.length], cr = x0 * y1 - x1 * y0;
+      A += cr / 2; Suu += cr * (x0 * x0 + x0 * x1 + x1 * x1) / 12; Svv += cr * (y0 * y0 + y0 * y1 + y1 * y1) / 12; Suv += cr * (x0 * y1 + 2 * x0 * y0 + 2 * x1 * y1 + x1 * y0) / 24;
+    }
+    if (A < 0) { A = -A; Suu = -Suu; Svv = -Svv; Suv = -Suv; }
+    const m = (Suu + Svv) / 2, r = Math.hypot((Suu - Svv) / 2, Suv), phi = 0.5 * Math.atan2(2 * Suv, Suu - Svv);
+    const J = f === "L" ? jRect(b, t) + jRect(t, h - t) : jRect(b, t) + jRect(t, h - t);
+    return { A, Iz: m + r, Iy: m - r, J, As: 5 / 6 * A, phi: phi * 180 / Math.PI };
+  }
+  const FORMAS = { rect: "Rectangular", circ: "Circular", L: "En L", T: "En T" };
+  // Losas: peso propio (kg/m²). Aligerada en una dirección según E.020; las demás, estimadas por geometría.
+  const TIPOS_LOSA = {
+    aligerada1: { nombre: "Aligerada en una dirección", h: [0.17, 0.20, 0.25, 0.30], div: 25, nota: "h ≥ L/25 (luz menor)" },
+    aligerada2: { nombre: "Aligerada en dos direcciones", h: [0.17, 0.20, 0.25, 0.30], div: 40, nota: "h ≥ L/40 o perímetro/180" },
+    maciza: { nombre: "Maciza (armada)", h: [0.12, 0.15, 0.17, 0.20, 0.25], div: 40, nota: "h ≥ L/40 en dos direcciones (L/30 si trabaja en una)" },
+    nervada: { nombre: "Nervada (sin ladrillo)", h: [0.20, 0.25, 0.30, 0.35, 0.40], div: 21, nota: "h ≥ L/21" },
+    colaborante: { nombre: "Placa colaborante (steel deck)", h: [0.11, 0.12, 0.14, 0.16], div: 32, nota: "h según catálogo; luz ≈ 32·h sin apuntalar" },
+    escalera: { nombre: "Escalera (hueco con su peso)", h: [0.15, 0.17, 0.20], div: 25, nota: "garganta ≈ L/25" },
+    vacio: { nombre: "Vacío / ducto (sin losa)", h: [0], div: 0, nota: "" },
+  };
+  function pesoLosa(tipo, h) {
+    const al1 = (x) => x <= 0.17 ? 280 : x <= 0.20 ? 300 : x <= 0.25 ? 350 : 420;
+    switch (tipo) {
+      case "aligerada2": return Math.round(al1(h) * 1.18); // viguetas en ambos sentidos
+      case "maciza": return Math.round(2400 * h);
+      case "nervada": return Math.round(2400 * (0.05 + 0.10 * (h - 0.05) / 0.50));
+      case "colaborante": return Math.round(2400 * (h - 0.03) + 10);
+      case "escalera": return Math.round(2400 * (h / Math.cos(Math.PI / 6) + 0.17 / 2)); // garganta inclinada + pasos
+      case "vacio": return 0;
+      default: return al1(h);
+    }
+  }
+
   function aModelo(p, pisos, fc, cargas, catC) { // catC: fracción de CV en el peso sísmico (número) o true = categoría C
     const n = pisos.n;
     const nodes = {}, idx = new Map(); let k = 0;
     const key = (q) => Math.round(q[0] / TOL) + "," + Math.round(q[1] / TOL);
     const nodo = (q) => { const kk = key(q); if (!idx.has(kk)) { const id = "N" + (++k); idx.set(kk, id); nodes[id] = [+q[0].toFixed(4), +q[1].toFixed(4)]; } return idx.get(kk); };
-    const sections = {}, secc = (tipo, b, h) => { const nm = (tipo === "col" ? "C" : tipo === "beam" ? "V" : "M") + Math.round(b * 100) + (h ? "x" + Math.round(h * 100) : ""); sections[nm] = { type: tipo, b, h }; return nm; };
+    const sections = {}, secc = (tipo, b, h, c) => {
+      const f = c && c.forma && c.forma !== "rect" ? c.forma : "";
+      const nm = (tipo === "col" ? "C" + f : tipo === "beam" ? "V" : "M") + Math.round(b * 100) + (h ? "x" + Math.round(h * 100) : "") + (f === "L" || f === "T" ? "t" + Math.round((c.t || 0.25) * 100) : "");
+      if (!sections[nm]) { sections[nm] = { type: tipo, b, h }; if (f) { sections[nm].forma = f; sections[nm].props = propsColumna(c); sections[nm].poly = contornoColumna(c); } }
+      return nm;
+    };
     const avisos = [];
     // puntos donde se parten vigas y placas: columnas, extremos e intersecciones
     const corte = [];
@@ -134,7 +193,7 @@
       for (let i = 0; i < ts.length - 1; i++) if (ts[i + 1] - ts[i] > 1e-6) out.push([P(ts[i]), P(ts[i + 1])]);
       return out;
     };
-    const columns = p.columnas.map(c => ({ node: nodo([c.x, c.y]), sec: secc("col", c.b, c.h), p1: 1, p2: n, ang: c.ang || 0 }));
+    const columns = p.columnas.map(c => { const nm = secc("col", c.b, c.h, c), pr = sections[nm].props; return { node: nodo([c.x, c.y]), sec: nm, p1: 1, p2: n, ang: (c.ang || 0) + (pr ? pr.phi : 0), angDib: c.ang || 0 }; });
     const beams = [], vistos = new Set();
     for (const v of p.vigas) for (const [a, b] of partir(v.a, v.b)) {
       const i = nodo(a), j = nodo(b), kk = [i, j].sort().join();
@@ -143,7 +202,25 @@
     }
     const walls = [];
     for (const w of p.placas) for (const [a, b] of partir(w.a, w.b)) walls.push({ i: nodo(a), j: nodo(b), sec: secc("wall", w.t), p1: 1, p2: n });
-    const slabs = p.losas.map(l => ({ nodes: l.pts.map(nodo), p1: 1, p2: n }));
+    // losas: peso propio según su tipo (la CM del formulario es solo acabados + tabiquería); escalera con su CV; vacío sin losa
+    // (planos antiguos sin losaTipo: la CM ya incluía la losa y no se suma nada)
+    const tl = p.losaTipo || null, base = tl ? pesoLosa(tl.tipo, tl.h) : 0;
+    const slabs = p.losas.filter(l => (l.tipo || (tl && tl.tipo)) !== "vacio").map(l => {
+      const tipo = l.tipo || (tl ? tl.tipo : "aligerada1"), h = l.h || (tl && tipo === tl.tipo ? tl.h : (TIPOS_LOSA[tipo].h[1] || TIPOS_LOSA[tipo].h[0]));
+      const extra = tl ? pesoLosa(tipo, h) : (l.tipo ? pesoLosa(tipo, h) - 300 : 0); // sin losaTipo: diferencia respecto a la aligerada de 0.20 incluida en la CM
+      const o = { nodes: l.pts.map(nodo), p1: 1, p2: n, cm: extra / 1000, tipo };
+      if (tipo === "escalera") { o.cm += 0.1; o.cvAbs = (cargas.cvEsc || 200) / 1000; }
+      return o;
+    });
+    // aberturas del diafragma (vacíos, escaleras y paños sin losa) para la irregularidad de la Tabla 12
+    let Abruta = 0, Aab = 0;
+    try {
+      for (const c of caras(p)) {
+        const A = Math.abs(areaPoly(c)), [cx, cy] = centroide(c); Abruta += A;
+        const l = p.losas.find(o => dentro(cx, cy, o.pts)), tipo = l && (l.tipo || (tl && tl.tipo));
+        if (!l || tipo === "vacio" || tipo === "escalera") Aab += A;
+      }
+    } catch (e) { /* planta sin recuadros */ }
     // nudos de vigas sin apoyo: el solver los resuelve, pero avisamos si una viga queda en voladizo de ambos lados
     const apoyos = new Set(columns.map(c => c.node).concat(walls.flatMap(w => [w.i, w.j])));
     if (!apoyos.size) avisos.push("No hay columnas ni placas.");
@@ -152,6 +229,7 @@
       model: {
         stories, E: 15000 * Math.sqrt(fc) * 10, nu: 0.2, gamma: 2.4, nodes, sections, columns, beams, slabs, walls,
         loads: { cm: cargas.cm / 1000, cmRoof: cargas.cmRoof / 1000, cv: cargas.cv / 1000, cvRoof: cargas.cvRoof / 1000 },
+        aberturas: { Abruta, Aab },
         massFactors: { cm: 1, cv: typeof catC === "number" ? catC : (catC ? 0.25 : 0.5), cvRoof: 0.25 },
       }, avisos,
     };
@@ -182,6 +260,6 @@
     return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
   }
 
-  root.Plano = { vacio, nuevoId, desdeEjes, caras, losasAutomaticas, losaEn, aModelo, revisar, luces, extension, proyeccion, interseccion, dist, dentro, areaPoly, centroide };
+  root.Plano = { contornoColumna, propsColumna, FORMAS, TIPOS_LOSA, pesoLosa, vacio, nuevoId, desdeEjes, caras, losasAutomaticas, losaEn, aModelo, revisar, luces, extension, proyeccion, interseccion, dist, dentro, areaPoly, centroide };
   if (typeof module !== "undefined") module.exports = root.Plano;
 })(typeof window !== "undefined" ? window : globalThis);
