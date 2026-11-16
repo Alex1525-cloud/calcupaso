@@ -226,3 +226,9 @@ label.primary-s { background: var(--accent); color: var(--accent-ink); border-ra
 .metodo .scroll { overflow-x: auto; }
 @media print { .metodo { display: none; } }
 td.bad { color: var(--bad); font-weight: 700; } td.warn { color: var(--warn); font-weight: 600; }
+.dis-tabs { align-items: center; flex-wrap: wrap; padding: 6px 0 0; background: none; }
+.dis-tabs select, .dis-tabs #btnCsv { margin-left: auto; margin-bottom: 4px; }
+.dis-tabs select + #btnCsv { margin-left: 6px; }
+.dis-tabla { max-height: 520px; overflow: auto; }
+.dis-tabla td { white-space: nowrap; }
+.dis-tabla thead th { position: sticky; top: 0; background: var(--surface); }

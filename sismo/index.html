@@ -19,7 +19,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"SismoPaso","url":"https://alex1525-cloud.github.io/calcupaso/sismo/","description":"Análisis sísmico de edificios según la norma peruana E.030 en el navegador: análisis estático y modal espectral, derivas, irregularidades, visor 3D y asistente normativo.","applicationCategory":"EducationalApplication","operatingSystem":"Cualquiera (navegador web)","inLanguage":"es","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"PEN"},"image":"https://alex1525-cloud.github.io/calcupaso/sismo/og.jpg"}</script>
-<link rel="stylesheet" href="src/app.css?v=20261116f">
+<link rel="stylesheet" href="src/app.css?v=20261116g">
 </head>
 <body>
 <header class="top">
@@ -124,18 +124,22 @@
         <label>Placa t (m) <input id="placaT" type="number" step="0.05"></label>
       </div>
       <div class="btns"><button id="btnTodasCol" class="ghost small">Aplicar a todas las columnas</button><button id="btnTodasVig" class="ghost small">… a todas las vigas</button><button id="btnTodasPla" class="ghost small">… a todas las placas</button></div>
-      <label>f'c (kg/cm²) <input id="fc" type="number" step="5"></label>
-      <button id="btnPredim" class="secondary">Sugerir predimensionamiento</button>
-      <div id="predim" class="tips"></div>
-    </section>
-
-    <section class="step hidden" data-step="4">
       <h3>Losa</h3>
       <div class="row">
         <label>Tipo de losa <select id="losaTipo"></select></label>
         <label>Espesor h (m) <input id="losaH" type="number" step="0.01"></label>
       </div>
       <div class="hint" id="hintLosa"></div>
+      <h3>Materiales</h3>
+      <div class="row">
+        <label>f'c (kg/cm²) <input id="fc" type="number" step="5"></label>
+        <label>fy del acero (kg/cm²) <input id="fy" type="number" step="100"></label>
+      </div>
+      <button id="btnPredim" class="secondary">Sugerir predimensionamiento</button>
+      <div id="predim" class="tips"></div>
+    </section>
+
+    <section class="step hidden" data-step="4">
       <h3>Cargas (E.020)</h3>
       <div class="row">
         <label>CM adicional pisos (kg/m²) <input id="cm" type="number" step="10" title="Acabados + tabiquería (el peso de la losa se suma solo)"></label>
@@ -149,6 +153,12 @@
         <label>CV escaleras (kg/m²) <input id="cvEsc" type="number" step="10"></label>
       </div>
       <div class="hint" id="hintCargas"></div>
+      <h3>Cimentación</h3>
+      <div class="row">
+        <label>Capacidad portante qadm (kg/cm²) <input id="qadm" type="number" step="0.1" title="Del estudio de mecánica de suelos (EMS)"></label>
+        <label>Profundidad de desplante Df (m) <input id="Df" type="number" step="0.1"></label>
+      </div>
+      <div class="hint">Con estos datos y las reacciones del análisis se dimensionan zapatas y cimientos corridos (en los resultados).</div>
     </section>
 
     <div id="revision" class="tips"></div>
@@ -237,12 +247,20 @@
     <p><b>Error esperado:</b> en <b>pórticos</b>, menos de 0,5% en periodos, peso, cortantes y derivas. El peso sísmico y el cortante estático coinciden exacto. En edificios con <b>placas</b>, el periodo sale cerca de 3% mayor y el cortante dinámico cerca de 1% mayor. Esto se debe a que SismoPaso modela cada placa como una "columna ancha" con brazos rígidos, y ETABS la modela con elementos lámina (shell).</p>
   </details>
 
+  <details><summary>Fuerzas internas y diseño E.060</summary>
+    <ul>
+      <li><b>Cargas de gravedad:</b> el peso propio de vigas, columnas y placas, más la CM y la CV de cada paño. La losa se reparte a sus vigas: en una dirección va a las vigas largas, y en dos direcciones por el método de los 45° (triángulos y trapecios). Se verifica que las reacciones sumen el peso total.</li>
+      <li><b>Sismo:</b> fuerzas de cada modo combinadas con CQC, escaladas igual que el cortante basal, más la torsión accidental.</li>
+      <li><b>Combinaciones (E.060 cap. 9):</b> 1,4CM + 1,7CV; 1,25(CM+CV) ± S; 0,9CM ± S. Las fuerzas se pueden descargar en CSV.</li>
+      <li><b>Diseño:</b> vigas (flexión y corte por capacidad), columnas (diagrama de interacción por fibras, biaxial), placas (núcleos, acero repartido, corte amplificado) y zapatas por capacidad portante, punzonamiento y corte.</li>
+    </ul>
+  </details>
+
   <details><summary>3. Qué no hace todavía (límites)</summary>
     <ul>
       <li>Placas con elemento lámina (shell). Hoy se usa la columna ancha, con la diferencia de ~3% indicada arriba.</li>
       <li>Diafragma flexible o con aberturas grandes. Se asume diafragma rígido en todos los pisos.</li>
       <li>Plantas distintas por piso: todos los pisos usan la misma planta.</li>
-      <li>Fuerzas internas por elemento y diseño E.060 de vigas, columnas y placas. Por ahora solo se dan las combinaciones.</li>
       <li>Piso débil por resistencia, sistemas no paralelos, efecto P-Δ, sismo vertical, interacción suelo-estructura y muros de albañilería.</li>
     </ul>
   </details>
@@ -268,17 +286,19 @@
   </div>
 </dialog>
 
-<script src="lib/three.min.js?v=20261116f"></script>
-<script src="lib/OrbitControls.js?v=20261116f"></script>
-<script src="src/solver.js?v=20261116f"></script>
-<script src="src/e030.js?v=20261116f"></script>
-<script src="src/irreg.js?v=20261116f"></script>
-<script src="src/plano.js?v=20261116f"></script>
-<script src="src/dxf.js?v=20261116f"></script>
-<script src="src/cad.js?v=20261116f"></script>
-<script src="src/asistente.js?v=20261116f"></script>
-<script src="src/rediseno.js?v=20261116f"></script>
-<script src="src/visor.js?v=20261116f"></script>
-<script src="src/app.js?v=20261116f"></script>
+<script src="lib/three.min.js?v=20261116g"></script>
+<script src="lib/OrbitControls.js?v=20261116g"></script>
+<script src="src/solver.js?v=20261116g"></script>
+<script src="src/e030.js?v=20261116g"></script>
+<script src="src/irreg.js?v=20261116g"></script>
+<script src="src/plano.js?v=20261116g"></script>
+<script src="src/dxf.js?v=20261116g"></script>
+<script src="src/cad.js?v=20261116g"></script>
+<script src="src/asistente.js?v=20261116g"></script>
+<script src="src/rediseno.js?v=20261116g"></script>
+<script src="src/fuerzas.js?v=20261116g"></script>
+<script src="src/diseno.js?v=20261116g"></script>
+<script src="src/visor.js?v=20261116g"></script>
+<script src="src/app.js?v=20261116g"></script>
 </body>
 </html>
