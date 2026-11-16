@@ -284,7 +284,7 @@
       const Kg = triple(T, Kl);
       // ensamblaje con restricciones del diafragma
       const map = dofMap(pa).concat(dofMap(pb));
-      e.Kg = Kg; e.map = map;
+      e.Kg = Kg; e.map = map; e.R = R; e.L = L;
       for (let i = 0; i < 12; i++) for (const ti of map[i]) for (let j = 0; j < 12; j++) {
         const v = Kg[i][j]; if (!v) continue;
         for (const tj of map[j]) addK(ti.g, tj.g, ti.c * tj.c * v);
@@ -314,7 +314,7 @@
     }
 
     const Wpp = pp.total;
-    return { N, z, levels, KL, mass, elems, pts, cargas: { PP: Wpp, ...cargas }, X, ns, nm, order };
+    return { N, z, levels, KL, mass, elems, pts, cargas: { PP: Wpp, ...cargas }, X, ns, nm, order, Kss, Ksm, model, sec };
   }
 
   // ---------------------------------------------------------------- análisis modal
