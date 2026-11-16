@@ -117,7 +117,7 @@
     for (const [p, P] of nodal) f[p.eq] -= P;
     const y = B.Kss.solve(f.slice(0, B.ns)), fm = f.slice(B.ns);
     for (let j = 0; j < B.nm; j++) { let s = 0; for (let r = 0; r < B.ns; r++) { const v = B.Ksm[r][j]; if (v) s += v * y[r]; } fm[j] -= s; }
-    const um = S.solveLateral(B, fm);
+    const um = S.solveMaster(B, fm);
     const u = new Float64Array(B.ns + B.nm);
     for (let r = 0; r < B.ns; r++) { let s = y[r]; for (let j = 0; j < B.nm; j++) s -= B.X[j][r] * um[j]; u[r] = s; }
     u.set(um, B.ns);
@@ -139,8 +139,7 @@
 
   const ue = (e, u) => e.map.map(l => l.reduce((a, t) => a + t.c * u[t.g], 0));
   function fuerzasLocales(e, u, c) {
-    const d = ue(e, u), fg = e.Kg.map(r => r.reduce((a, v, j) => a + v * d[j], 0));
-    const fl = aLocal(e.R, fg);
+    const fl = S.elemLocal(e, u);
     if (c) { const q = feqLocal(e, c); for (let i = 0; i < 12; i++) fl[i] -= q[i]; }
     return fl;
   }

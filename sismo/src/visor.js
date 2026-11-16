@@ -44,7 +44,7 @@
   V.dibujar = function (model, z) {
     if (solidos) scene.remove(solidos);
     if (lineas) scene.remove(lineas);
-    solidos = new THREE.Group(); segs = [];
+    solidos = new THREE.Group(); segs = []; anim = null;
     const sec = model.sections, nd = model.nodes;
     const cCol = new THREE.Color(css("--col")), cViga = new THREE.Color(css("--beam")), cMuro = new THREE.Color(css("--wall")), cLosa = new THREE.Color(css("--slab"));
     for (const c of model.columns) for (let k = c.p1; k <= c.p2; k++) {
@@ -122,16 +122,18 @@
     controls.update();
   };
 
-  // Animar un modo: niveles = [{xc, yc}], phi = vector 3N (ux, uy, θ por nivel)
-  V.modo = function (niveles, phi, escala) {
+  // Animar un modo: B = modelo del solver, phi = vector de los gdl maestros (diafragma rígido o flexible)
+  V.modo = function (B, phi, escala) {
     if (!phi) { anim = null; lineas.visible = false; solidos.children.forEach(m => { if (m.material && m.userData.tipo !== "losa") { m.material.transparent = m.userData.tipo === "muro"; m.material.opacity = m.userData.tipo === "muro" ? 0.92 : 1; } }); return; }
     // amplitud: el mayor desplazamiento de un punto = escala × 10% de la altura
     let mx = 1e-12;
-    for (const s of segs) for (const [x, y, k] of [[s[0], s[1], s[2]], [s[3], s[4], s[5]]]) {
-      if (!k) continue; const i = 3 * (k - 1), L = niveles[k - 1];
-      mx = Math.max(mx, Math.hypot(phi[i] - (y - L.yc) * phi[i + 2], phi[i + 1] + (x - L.xc) * phi[i + 2]));
-    }
-    anim = { niveles, phi, amp: escala * 0.12 * tam / mx };
+    const d = segs.map(s => [0, 1].map(e => {
+      const x = s[3 * e], y = s[3 * e + 1], k = s[3 * e + 2];
+      if (!k) return [0, 0];
+      const v = [root.Solver.pointDisp(B, phi, k, x, y, 0), root.Solver.pointDisp(B, phi, k, x, y, 1)];
+      mx = Math.max(mx, Math.hypot(v[0], v[1])); return v;
+    }));
+    anim = { d, amp: escala * 0.12 * tam / mx };
     lineas.visible = true; t0 = performance.now();
     solidos.children.forEach(m => { if (m.material && m.userData.tipo && m.userData.tipo !== "losa") { m.material.transparent = true; m.material.opacity = 0.35; } });
   };
@@ -159,8 +161,7 @@
       segs.forEach((g, i) => {
         for (let e = 0; e < 2; e++) {
           const x = g[3 * e], y = g[3 * e + 1], k = g[3 * e + 2];
-          let dx = 0, dy = 0;
-          if (k) { const j = 3 * (k - 1), L = anim.niveles[k - 1]; dx = anim.phi[j] - (y - L.yc) * anim.phi[j + 2]; dy = anim.phi[j + 1] + (x - L.xc) * anim.phi[j + 2]; }
+          const [dx, dy] = anim.d[i][e];
           const p = P(x + s * dx, y + s * dy, z[k]);
           a.set([p.x, p.y, p.z], 6 * i + 3 * e);
         }

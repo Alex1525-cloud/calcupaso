@@ -106,7 +106,7 @@
       const u = S.solveLateral(B, F);
       const V = []; let acc = 0; for (let k = N - 1; k >= 0; k--) { acc += D.Fest[k]; V[k] = acc; }
       L.forEach((Lv, k) => {
-        const d = u[3 * k + D.d] - (k ? u[3 * (k - 1) + D.d] : 0);
+        const d = S.despNivel(B, u, k + 1)[D.d] - (k ? S.despNivel(B, u, k)[D.d] : 0);
         (r.rigidez[k] = r.rigidez[k] || { piso: Lv.name })[D.d ? "Ky" : "Kx"] = V[k] / d;
       });
       for (const sg of [1, -1]) {

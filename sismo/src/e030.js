@@ -75,7 +75,7 @@
     const q = parametros(p);
     const B = S.buildModel(model);
     const N = B.N, levels = B.levels;
-    const modes = S.modal(B, Math.min(B.nm, Math.max(12, 3 * N)));
+    const modes = S.modal(B, Math.min(B.nm, Math.max(12, B.flex ? 6 * N : 3 * N)));
     const P = levels.reduce((a, L) => a + L.W, 0);
     const g = S.G, rampa = q.norma === "2026";
     const hn = B.z[N];
@@ -97,7 +97,7 @@
         const Sa = q.Z * q.U * factorC(m.T, q.Tp, q.TL, rampa) * q.S / R * g * factor;
         const Gm = d === 0 ? m.Gx : m.Gy;
         const u = m.phi.map(v => v * Gm * Sa / (m.w * m.w));
-        const f = levels.map((L, k) => [L.m * m.phi[3 * k] * Gm * Sa, L.m * m.phi[3 * k + 1] * Gm * Sa, L.J * m.phi[3 * k + 2] * Gm * Sa]);
+        const fv = S.fuerzasNivel(B, m.phi.map((v, j) => B.mass[j] * v * Gm * Sa)), f = levels.map((L, k) => [fv[3 * k], fv[3 * k + 1], fv[3 * k + 2]]);
         return { u, f, Sa };
       });
       // cortantes de piso combinados (CQC)
