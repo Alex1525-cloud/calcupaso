@@ -203,6 +203,14 @@ table.ruf td.rem{box-shadow:inset 0 0 0 2px var(--pivot);background:var(--pivot-
 .kbgrid button,.kbbar button{font:600 .95rem var(--f-num);min-height:42px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;padding:0 2px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
 .kbgrid button:active,.kbbar button:active{transform:scale(.96);background:var(--chg)}
 .kbgrid button.kn{background:var(--surface);font-size:1.05rem}
+.pv{font:1.08rem/1.5 var(--f-body);color:var(--ink);padding:6px 12px;margin-top:6px;border-radius:10px;background:var(--chg);border-left:3px solid var(--accent);overflow-x:auto;white-space:nowrap}
+.pv>div{padding:1px 0}
+.pv .fr{font-size:.85em}
+.pv sup{font-size:.72em}
+.pvr{white-space:nowrap}.pvr .rad{padding:0 2px}.pvi{font-size:.6em;margin-right:-.35em;vertical-align:.9em}
+.pvop{font-weight:600;color:var(--accent)}
+.pvgap{display:inline-block;width:.7em;height:1em;border:1.5px dashed var(--muted);border-radius:3px;vertical-align:middle}
+.fgrid .pv{font-size:.95rem;padding:4px 8px}
 .kbgrid button.kl{font-size:.74rem;letter-spacing:-.02em}
 .kbgrid button.ko{color:var(--accent);font-size:1.1rem}
 .kbbar{display:grid;grid-template-columns:1fr 1fr 1fr 1.6fr 1fr 2fr;gap:5px;margin-top:5px}
@@ -1801,7 +1809,7 @@ function h(n,ctx){
 /* ---- Lector de expresiones ---- */
 const FNS={sin:'sin',sen:'sin',cos:'cos',tan:'tan',tg:'tan',cot:'cot',ctg:'cot',sec:'sec',csc:'csc',cosec:'csc',ln:'ln',log:'ln',exp:'exp',sqrt:'sqrt',raiz:'sqrt',
   fact:'fact',arcsin:'arcsin',arcsen:'arcsin',asin:'arcsin',arccos:'arccos',acos:'arccos',arctan:'arctan',atan:'arctan',arctg:'arctan',sinh:'sinh',senh:'sinh',cosh:'cosh',tanh:'tanh',tgh:'tanh',cbrt:'cbrt',logdiez:'log10'};
-function parseExpr(src,vars=['x']){
+function parseExpr(src,vars=['x'],opt={}){
   const s=src.replace(/\s+/g,' ').replace(/[−–]/g,'-').replace(/·|×/g,'*').replace(/√/g,'sqrt').replace(/π/g,'pi').replace(/²/g,'^2').replace(/³/g,'^3').replace(/÷/g,'/').replace(/∛/g,'cbrt').replace(/log\s*10\s*\(/gi,'logdiez(').replace(/log₁₀/g,'logdiez').trim();
   const toks=[]; let i=0;
   while(i<s.length){ const ch=s[i];
@@ -1833,7 +1841,7 @@ function parseExpr(src,vars=['x']){
     if(t.k==='f'){ let ex=null; if(peek()&&peek().k==='^'){p++; ex=unaryP()} const arg=peek()&&peek().k==='('?(p++,(()=>{const e=expr();eat(')');return e})()):power(); const E=u=>Pw(Cn('e'),u), HY={sinh:a=>Mu(Nn(new Fr(1n,2n)),Sb(E(a),E(Neg(a)))),cosh:a=>Mu(Nn(new Fr(1n,2n)),Ad(E(a),E(Neg(a)))),tanh:a=>Mu(Sb(E(a),E(Neg(a))),Pw(Ad(E(a),E(Neg(a))),-1)),cbrt:a=>Pw(a,Nn(new Fr(1n,3n))),log10:a=>Mu(Fn('ln',a),Pw(Fn('ln',Nn(F(10))),-1))}; const f=HY[t.v]?HY[t.v](arg):Fn(t.v,arg); return ex?Pw(f,ex):f }
     throw new Error('Expresión mal formada cerca de "'+(t.k)+'".'); }
   if(!toks.length) throw new Error('Escribe una expresión.');
-  const r=expr(); if(p<toks.length) throw new Error('Sobra algo al final de la expresión.');
+  const r=expr(); if(p<toks.length) throw new Error('Sobra algo al final de la expresión.'); if(opt.raw) return r;
   const chk=n=>{ if(n.t==='fn'&&n.f==='abs') throw new Error('El valor absoluto |…| todavía no está soportado dentro de la integral.'); if(n.a&&n.a.forEach) n.a.forEach(chk); else if(n.a) chk(n.a); if(n.b){chk(n.b);chk(n.e)} };
   chk(r); return S(r);
 }
@@ -3871,6 +3879,81 @@ let rzT=null; addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(
     if(pref){ if(cur!==el) show(el) } else { fab._el=el; fab.hidden=false } });
   document.addEventListener('focusout',()=>setTimeout(()=>{ const a=document.activeElement; if(a&&a.matches&&a.matches(MATH)) return; if(!wrap.hidden) hide(); fab.hidden=true },120));
 })();
+
+// ===== Vista previa: muestra lo que se escribe como fórmula (fracciones, raíces, potencias) =====
+const PV=(()=>{
+  const FN={sin:'sen',sen:'sen',cos:'cos',tan:'tan',tg:'tan',cot:'cot',ctg:'cot',sec:'sec',csc:'csc',cosec:'csc',ln:'ln',log:'log',exp:'exp',sqrt:'√',raiz:'√',cbrt:'∛',abs:'abs',fact:'!',
+    arcsin:'arcsen',arcsen:'arcsen',asin:'arcsen',arccos:'arccos',acos:'arccos',arctan:'arctan',atan:'arctan',arctg:'arctan',sinh:'senh',senh:'senh',cosh:'cosh',tanh:'tanh',tgh:'tanh',logdiez:'log₁₀'};
+  const KEYS=Object.keys(FN).sort((a,b)=>b.length-a.length);
+  function lex(s){ s=s.replace(/[−–]/g,'-').replace(/×|·/g,'*').replace(/÷/g,'/').replace(/√/g,'sqrt').replace(/∛/g,'cbrt').replace(/π/g,'pi').replace(/²/g,'^2').replace(/³/g,'^3').replace(/≤/g,'<=').replace(/≥/g,'>=').replace(/log\s*10\s*\(/gi,'logdiez(').replace(/log₁₀/g,'logdiez');
+    const t=[]; let i=0;
+    while(i<s.length){ const c=s[i];
+      if(/\s/.test(c)){ i++; continue }
+      if(/[0-9.]/.test(c)){ let j=i; while(j<s.length&&/[0-9.]/.test(s[j])) j++; t.push({k:'n',v:s.slice(i,j)}); i=j; continue }
+      if(/[a-zA-Zθ]/.test(c)){ let j=i; while(j<s.length&&/[a-zA-Zθ]/.test(s[j])) j++; let w=s.slice(i,j); i=j;
+        if(/^(inf|infinito)$/i.test(w)){ t.push({k:'c',v:'∞'}); continue }
+        while(w.length){ const lw=w.toLowerCase(), f=KEYS.find(k=>lw.startsWith(k)); if(f){ t.push({k:'f',v:FN[f]}); w=w.slice(f.length); continue }
+          if(lw.startsWith('pi')){ t.push({k:'c',v:'π'}); w=w.slice(2); continue }
+          t.push({k:'v',v:w[0]}); w=w.slice(1) } continue }
+      if(c==='<'||c==='>'){ if(s[i+1]==='='){ t.push({k:'r',v:c==='<'?'≤':'≥'}); i+=2 } else { t.push({k:'r',v:c}); i++ } continue }
+      if(c==='='){ t.push({k:'r',v:'='}); i++; continue }
+      if('+-*/^(),|!'.includes(c)){ t.push({k:c}); i++; continue }
+      throw 0 }
+    return t }
+  function parse(src){ const t=lex(src); let p=0; const pk=()=>t[p], is=k=>t[p]&&t[p].k===k;
+    const startsP=x=>x&&(x.k==='n'||x.k==='v'||x.k==='c'||x.k==='f'||x.k==='(');
+    function list(){ const a=[rel()]; while(is(',')){ p++; a.push(rel()) } return a.length>1?{t:'list',a}:a[0] }
+    function rel(){ let a=sum(); const parts=[a], ops=[]; while(is('r')){ ops.push(t[p++].v); parts.push(sum()) } return ops.length?{t:'rel',parts,ops}:a }
+    function sum(){ const a=[{s:'',n:prod()}]; while(is('+')||is('-')){ const o=t[p++].k; a.push({s:o,n:prod()}) } return a.length>1?{t:'add',a}:a[0].n }
+    function prod(){ let n=un(); for(;;){ if(is('*')){ p++; n={t:'mul',a:n,b:un(),x:1} } else if(is('/')){ p++; n={t:'div',a:n,b:un()} } else if(startsP(pk())){ n={t:'mul',a:n,b:pow()} } else break } return n }
+    function un(){ if(is('-')){ p++; return {t:'neg',a:un()} } if(is('+')){ p++; return un() } return pow() }
+    function pow(){ let b=post(); if(is('^')){ p++; const e=is('-')?(p++,{t:'neg',a:pow()}):pow(); return {t:'pow',b,e} } return b }
+    function post(){ let n=prim(); while(is('!')){ p++; n={t:'fact',a:n} } return n }
+    function close(){ if(is(')')) p++ }
+    function prim(){ const x=t[p++]; if(!x) return {t:'gap'};
+      if(x.k==='n') return {t:'num',v:x.v}; if(x.k==='v') return {t:'var',v:x.v}; if(x.k==='c') return {t:'con',v:x.v};
+      if(x.k==='('){ const e=list(); close(); return {t:'par',a:e} }
+      if(x.k==='|'){ const e=sum(); if(is('|')) p++; return {t:'abs',a:e} }
+      if(x.k==='f'){ let ex=null; if(is('^')){ p++; ex=pow() } let arg; if(is('(')){ p++; arg=list(); close() } else arg=pow(); const f={t:'fn',f:x.v,a:arg}; return ex?{t:'pow',b:f,e:ex,fe:1}:f }
+      throw 0 }
+    const r=list(); if(p<t.length) throw 0; return r }
+  const strip=n=>n.t==='par'?n.a:n;
+  const isNum=n=>n.t==='num'||(n.t==='neg'&&isNum(n.a));
+  function R(n){ switch(n.t){
+    case 'gap': return '<span class="pvgap"></span>';
+    case 'num': return n.v; case 'var': return `<i>${n.v}</i>`; case 'con': return n.v==='e'?'<i>e</i>':n.v;
+    case 'list': return n.a.map(R).join(', ');
+    case 'rel': return n.parts.map((q,i)=>(i?` <b class="pvop">${n.ops[i-1]}</b> `:'')+R(q)).join('');
+    case 'add': return n.a.map((q,i)=>(i?` ${q.s==='-'?'−':'+'} `:'')+R(q.n)).join('');
+    case 'neg': return '−'+(n.a.t==='add'?`(${R(n.a)})`:R(n.a));
+    case 'mul': { const A=R(n.a), B=R(n.b), dot=(isNum(n.b)||n.b.t==='pow'&&isNum(n.b.b))||(n.x&&!(isNum(n.a)&&(n.b.t==='var'||n.b.t==='fn'||n.b.t==='par'||n.b.t==='con'||n.b.t==='pow'))); return A+(dot?'·':(n.a.t==='div'||n.b.t==='div'?'&thinsp;':''))+B }
+    case 'div': return `<span class="fr"><span>${R(strip(n.a))}</span><span>${R(strip(n.b))}</span></span>`;
+    case 'pow': { const b=n.b, base=n.fe?R({...b,a:b.a,_e:R(strip(n.e))}):(['add','mul','div','neg','rel'].includes(b.t)?`(${R(b)})`:R(b)); return n.fe?base:`${base}<sup>${R(strip(n.e))}</sup>` }
+    case 'fact': return (['num','var','par'].includes(n.a.t)?R(n.a):`(${R(n.a)})`)+'!';
+    case 'abs': return `|${R(n.a)}|`;
+    case 'par': return `(${R(n.a)})`;
+    case 'fn': { const a=strip(n.a), sup=n._e?`<sup>${n._e}</sup>`:'';
+      if(n.f==='√') return `<span class="pvr">√<span class="rad">${R(a)}</span></span>`+sup;
+      if(n.f==='∛') return `<span class="pvr"><sup class="pvi">3</sup>√<span class="rad">${R(a)}</span></span>`+sup;
+      if(n.f==='!') return (['num','var'].includes(a.t)?R(a):`(${R(a)})`)+'!';
+      if(n.f==='abs') return `|${R(a)}|`;
+      if(n.f==='exp') return `<i>e</i><sup>${R(a)}</sup>`;
+      return `${n.f}${sup}(${R(a)})` } }
+    return '' }
+  const html=s=>R(parse(s));
+  const SEL='section input:not([type=number]):not(#sname):not(.sz):not(#mexpr), section textarea';
+  const skip=el=>!!el.closest('.mgrid,.qin,.ncgrid');
+  function update(el){ if(!el.matches(SEL)||skip(el)) return; let box=el.nextElementSibling; if(!box||!box.classList.contains('pv')){ box=document.createElement('div'); box.className='pv'; box.setAttribute('aria-hidden','true'); el.after(box) }
+    const v=el.value; let h='';
+    try{ if(el.tagName==='TEXTAREA'){ const ls=v.split('\n').filter(l=>/[a-zA-Zπ√=<>^\/]/.test(l)&&!/\|/.test(l)); if(ls.length&&ls.length<=8) h=ls.map(l=>`<div>${html(l)}</div>`).join('') }
+      else if(/[a-zA-Zπ√∛^\/()=<>!]/.test(v)&&!/^\s*-?inf\s*$/i.test(v)) h=html(v) }catch(e){ h=box.dataset.ok&&v.startsWith(box.dataset.src||'\u0000')?box.dataset.ok:'' }
+    if(h){ box.dataset.ok=h; box.dataset.src=v }
+    box.innerHTML=h; box.hidden=!h }
+  const refresh=()=>document.querySelectorAll(SEL).forEach(update);
+  document.addEventListener('input',e=>{ if(e.target.matches&&e.target.matches(SEL)) update(e.target) });
+  document.addEventListener('click',()=>requestAnimationFrame(()=>refresh()));
+  return {html,update,refresh} })();
+PV.refresh();
 
 // Formato y modo
 Object.assign(SET,store.get('cp_set',{}));
