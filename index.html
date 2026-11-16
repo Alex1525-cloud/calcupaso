@@ -3839,14 +3839,14 @@ let rzT=null; addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(
              ['csc','csc(|)'],['sec','sec(|)'],['cot','cot(|)'],['x','x'],['θ','t'],['(','('],[')',')'],
              ['arcsen','arcsin(|)'],['arccos','arccos(|)'],['arctan','arctan(|)'],['senh','sinh(|)'],['cosh','cosh(|)'],['tanh','tanh(|)'],['²','^2']]};
   const tabs=Object.keys(KB); let tab=store.get('cp_kbtab','Básico'); if(!KB[tab]) tab='Básico';
-  const touch=matchMedia('(pointer:coarse)').matches; let pref=store.get('cp_kbd',touch), cur=null;
+  const touch=matchMedia('(pointer:coarse)').matches; let pref=store.get('cp_kbd2',true), cur=null;
   const wrap=document.createElement('div'); wrap.id='kbd'; wrap.className='kbd'; wrap.hidden=true; wrap.setAttribute('role','group'); wrap.setAttribute('aria-label','Teclado matemático');
   const fab=document.createElement('button'); fab.id='kbfab'; fab.className='kbfab'; fab.hidden=true; fab.type='button'; fab.innerHTML='<span aria-hidden="true">∑</span> Teclado'; fab.title='Abrir el teclado matemático';
   document.body.append(wrap,fab);
   const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
   function render(){ wrap.innerHTML=`<div class="kbtabs">${tabs.map(t=>`<button type="button" data-kt="${t}" aria-pressed="${t===tab}">${t}</button>`).join('')}<button type="button" class="kbx" data-ka="close" aria-label="Cerrar teclado">✕</button></div>
     <div class="kbgrid">${KB[tab].map(([l,ins])=>`<button type="button" data-ins="${esc(ins===undefined?l:ins)}" class="${/^[0-9.]$/.test(l)?'kn':/^[+\-−×÷=]$|^\/$/.test(l)?'ko':l.length>4?'kl':''}">${l}</button>`).join('')}</div>
-    <div class="kbbar"><button type="button" data-ka="abc">ABC</button><button type="button" data-ka="left" aria-label="Mover a la izquierda">←</button><button type="button" data-ka="right" aria-label="Mover a la derecha">→</button><button type="button" data-ka="nl" class="kbnl">⏎ Línea</button><button type="button" data-ka="del" aria-label="Borrar">⌫</button><button type="button" data-ka="go" class="kbgo">Resolver</button></div>` ;
+    <div class="kbbar"><button type="button" data-ka="abc" title="${touch?'Usar el teclado del celular':'Ocultar el teclado matemático'}">${touch?'ABC':'Ocultar'}</button><button type="button" data-ka="left" aria-label="Mover a la izquierda">←</button><button type="button" data-ka="right" aria-label="Mover a la derecha">→</button><button type="button" data-ka="nl" class="kbnl">⏎ Línea</button><button type="button" data-ka="del" aria-label="Borrar">⌫</button><button type="button" data-ka="go" class="kbgo">Resolver</button></div>` ;
     wrap.querySelector('.kbnl').hidden=!(cur&&cur.tagName==='TEXTAREA') }
   function insert(tpl){ if(!cur) return; const s=cur.selectionStart??cur.value.length, e=cur.selectionEnd??s, sel=cur.value.slice(s,e), i=tpl.indexOf('|'), t=tpl.replace('|',sel);
     cur.setRangeText(t,s,e,'end'); const pos=i<0?s+t.length:(sel?s+t.length:s+i); cur.setSelectionRange(pos,pos); cur.dispatchEvent(new Event('input',{bubbles:true})) }
@@ -3855,7 +3855,7 @@ let rzT=null; addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(
     else if(a==='right') cur.setSelectionRange(Math.min(cur.value.length,e+1),Math.min(cur.value.length,e+1));
     else if(a==='del'){ if(s!==e) cur.setRangeText('',s,e,'end'); else if(s>0) cur.setRangeText('',s-1,s,'end'); cur.dispatchEvent(new Event('input',{bubbles:true})) }
     else if(a==='nl') insert('\n');
-    else if(a==='abc'){ pref=false; store.set('cp_kbd',false); const el=cur; hide(); el.setAttribute('inputmode','text'); el.blur(); setTimeout(()=>el.focus(),30) }
+    else if(a==='abc'){ pref=false; store.set('cp_kbd2',false); const el=cur; hide(); el.setAttribute('inputmode','text'); if(touch){ el.blur(); setTimeout(()=>el.focus(),30) } else { fab._el=el; fab.hidden=false } }
     else if(a==='close'){ const el=cur; hide(); el.blur() }
     else if(a==='go'){ const sec=cur.closest('.tmode')||cur.closest('[id^="lap-"],[id^="ode-"]')||cur.closest('.panel'); const b=sec&&(sec.querySelector('[data-run]')||sec.querySelector('.btn.pri')); const el=cur; hide(); el.blur(); if(b) b.click() } }
   function show(el){ cur=el; el.setAttribute('inputmode','none'); render(); wrap.hidden=false; fab.hidden=true; document.body.classList.add('kb-open');
@@ -3866,7 +3866,7 @@ let rzT=null; addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(
     if(b.dataset.kt){ tab=b.dataset.kt; store.set('cp_kbtab',tab); render(); return }
     if(b.dataset.ins!==undefined) insert(b.dataset.ins); else if(b.dataset.ka) action(b.dataset.ka) });
   fab.addEventListener('pointerdown',e=>e.preventDefault());
-  fab.onclick=()=>{ const el=fab._el; if(!el) return; pref=true; store.set('cp_kbd',true); el.blur(); show(el); el.focus() };
+  fab.onclick=()=>{ const el=fab._el; if(!el) return; pref=true; store.set('cp_kbd2',true); el.blur(); show(el); el.focus() };
   document.addEventListener('focusin',e=>{ const el=e.target; if(!el.matches||!el.matches(MATH)) return;
     if(pref){ if(cur!==el) show(el) } else { fab._el=el; fab.hidden=false } });
   document.addEventListener('focusout',()=>setTimeout(()=>{ const a=document.activeElement; if(a&&a.matches&&a.matches(MATH)) return; if(!wrap.hidden) hide(); fab.hidden=true },120));
