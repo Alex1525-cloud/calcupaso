@@ -192,6 +192,26 @@ canvas.tri{max-width:420px}
 table.ruf td{font-family:var(--f-num);text-align:center;min-width:2.2rem}
 table.ruf tr.rr td{border-top:1.5px solid var(--ink)}
 table.ruf td.rem{box-shadow:inset 0 0 0 2px var(--pivot);background:var(--pivot-bg)}
+
+.kbd{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--surface);border-top:1px solid var(--line);box-shadow:0 -10px 30px -12px rgba(15,23,42,.25);padding:8px max(8px,env(safe-area-inset-left,0px)) calc(8px + env(safe-area-inset-bottom,0px));}
+.kbd>*{max-width:720px;margin-left:auto;margin-right:auto}
+.kbtabs{display:flex;gap:4px;margin-bottom:6px;align-items:center}
+.kbtabs button{font:600 .78rem var(--f-body);border:0;background:none;color:var(--muted);padding:6px 10px;border-radius:999px;cursor:pointer}
+.kbtabs button[aria-pressed="true"]{background:var(--chg);color:var(--accent)}
+.kbtabs .kbx{margin-left:auto;font-size:.9rem}
+.kbgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.kbgrid button,.kbbar button{font:600 .95rem var(--f-num);min-height:42px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;padding:0 2px;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+.kbgrid button:active,.kbbar button:active{transform:scale(.96);background:var(--chg)}
+.kbgrid button.kn{background:var(--surface);font-size:1.05rem}
+.kbgrid button.kl{font-size:.74rem;letter-spacing:-.02em}
+.kbgrid button.ko{color:var(--accent);font-size:1.1rem}
+.kbbar{display:grid;grid-template-columns:1fr 1fr 1fr 1.6fr 1fr 2fr;gap:5px;margin-top:5px}
+.kbbar .kbnl[hidden]{display:none}.kbbar:has(.kbnl[hidden]){grid-template-columns:1fr 1fr 1fr 1fr 2fr}
+.kbbar button{font-family:var(--f-body);font-size:.82rem}
+.kbbar .kbgo{background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--accent-ink);border-color:transparent}
+body.kb-open{padding-bottom:330px}
+.kbfab{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:45;font:700 .85rem var(--f-body);padding:10px 14px;border-radius:999px;border:0;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--accent2));color:var(--accent-ink);box-shadow:var(--shadow-lg)}
+@media (max-width:420px){.kbgrid button{min-height:40px;font-size:.88rem}.kbgrid{gap:4px}}
 :root{--bg:#F4F7FC;--line:#E1E7F0;--accent:#2563EB;--accent2:#7C3AED;--chg:#EAF1FE;--grid:rgba(37,99,235,.05);--surface:#FFFFFF;--ink:#0F172A;--muted:#5E6B80;--accent-ink:#FFFFFF;--f-display:"Plus Jakarta Sans",system-ui,sans-serif;--radius:16px;--shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -6px rgba(15,23,42,.08);--shadow-lg:0 2px 4px rgba(15,23,42,.05),0 16px 40px -10px rgba(15,23,42,.18)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B1220;--surface:#131C2E;--line:#243149;--accent:#7EA4FF;--accent2:#B79CFF;--chg:#1B2A48;--grid:rgba(126,164,255,.05);--ink:#E6ECF6;--muted:#97A6BD;--accent-ink:#0B1220;--shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px -8px rgba(0,0,0,.5);--shadow-lg:0 16px 40px -10px rgba(0,0,0,.6)}}
 :root[data-theme="dark"]{--bg:#0B1220;--surface:#131C2E;--line:#243149;--accent:#7EA4FF;--accent2:#B79CFF;--chg:#1B2A48;--grid:rgba(126,164,255,.05);--ink:#E6ECF6;--muted:#97A6BD;--accent-ink:#0B1220;--shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px -8px rgba(0,0,0,.5);--shadow-lg:0 16px 40px -10px rgba(0,0,0,.6)}
@@ -325,7 +345,7 @@ footer{border-top:1px solid var(--line);padding-top:16px}
     <div class="row" style="margin-top:10px"><span class="lbl">Matriz <span id="mname">A</span></span><input class="sz" id="ar" type="number" min="1" max="15" value="3"> × <input class="sz" id="ac" type="number" min="1" max="15" value="3">
       <button class="btn sm" id="aclr">Limpiar</button><button class="btn sm" id="aid">Identidad</button><button class="btn sm" id="adel">Quitar</button></div>
     <div class="mgrid" id="gm"></div>
-    <p class="hint">Acepta enteros, decimales (1.5 o 1,5) y fracciones (3/4). Hasta 8 matrices de 15×15; el paso a paso gratis llega hasta 6×6.</p>
+    <p class="hint">Acepta enteros, decimales (1.5 o 1,5) y fracciones (3/4). Hasta 8 matrices de 15×15.</p>
     <details><summary class="hint" style="cursor:pointer">Pegar matriz desde Excel</summary>
       <textarea id="paste" class="paste" placeholder="Copia las celdas en Excel y pégalas aquí. Una fila por línea."></textarea>
       <div class="row"><button class="btn sm" id="pasteA">Cargar en la matriz activa</button><button class="btn sm" id="pasteS">Cargar en el sistema</button></div>
@@ -388,7 +408,7 @@ footer{border-top:1px solid var(--line);padding-top:16px}
     <div class="mhead" id="sh"></div>
     <div class="mgrid" id="gs"></div>
     <div class="row"><button class="btn pri" id="ssolve">Resolver por Gauss-Jordan</button><button class="btn sm" id="sclr">Limpiar</button></div>
-    <p class="hint">La columna con borde azul es el término independiente (lo que va después del =). Hasta 15 incógnitas; el paso a paso gratis llega hasta 6.</p>
+    <p class="hint">La columna con borde azul es el término independiente (lo que va después del =). Hasta 15 incógnitas.</p>
   </div>
   <div class="panel out" id="o-sys" aria-live="polite"></div>
 </section>
@@ -1282,8 +1302,8 @@ footer{border-top:1px solid var(--line);padding-top:16px}
 
 
 <footer>
-  <span>El resultado siempre es gratis. Los pasos detallados tienen 4 usos gratis por día.</span>
-  <button class="btn sm" id="reset">Reiniciar contador (modo prueba)</button>
+  <span>CalcuPaso: resuelve y explica cada paso. Gratis.</span>
+  <span>Hecho en Perú 🇵🇪</span>
 </footer>
 </div>
 
@@ -1594,8 +1614,8 @@ function plotQuad(a,b,c,h,k,roots){
 /* ================= Sistemas ================= */
 const VN=m=>m<=4?['x','y','z','w'].slice(0,m):Array.from({length:m},(_,i)=>`x<sub>${i+1}</sub>`);
 function eqHTML(row,names){ let s=''; row.slice(0,-1).forEach((c,j)=>{ if(c.isZero()) return; const a=c.abs(), t=(a.eq(ONE)?'':frHTML(a))+`<i>${names[j]}</i>`; s+=s===''?(c.sign()<0?'−':'')+t:(c.sign()<0?' − ':' + ')+t }); return (s||'0')+' = '+frHTML(row[row.length-1]) }
-function opSys(Aug){
-  const m=Aug[0].length-1, names=VN(m), g=gaussJordan(Aug,{aug:1}), R=g.R;
+function opSys(Aug,NM){
+  const m=Aug[0].length-1, names=NM||VN(m), g=gaussJordan(Aug,{aug:1}), R=g.R;
   const steps=[{title:'Matriz aumentada [A | b]',text:Aug.map(r=>eqHTML(r,names)).join('<br>')+'<br>Pasamos los coeficientes a una matriz y, separados por la línea, los términos independientes.',mat:matHTML(Aug,{aug:1})},...g.steps];
   const bad=R.findIndex(r=>r.slice(0,m).every(x=>x.isZero())&&!r[m].isZero());
   if(bad>=0){ steps.push({title:'Fila contradictoria',text:`La fila ${bad+1} dice 0 = ${frHTML(R[bad][m])}, lo cual es imposible.`,rule:'Teorema de Rouché–Frobenius: si rango(A) < rango([A|b]), el sistema es incompatible.'});
@@ -1780,9 +1800,9 @@ function h(n,ctx){
 
 /* ---- Lector de expresiones ---- */
 const FNS={sin:'sin',sen:'sin',cos:'cos',tan:'tan',tg:'tan',cot:'cot',ctg:'cot',sec:'sec',csc:'csc',cosec:'csc',ln:'ln',log:'ln',exp:'exp',sqrt:'sqrt',raiz:'sqrt',
-  fact:'fact',arcsin:'arcsin',arcsen:'arcsin',asin:'arcsin',arccos:'arccos',acos:'arccos',arctan:'arctan',atan:'arctan',arctg:'arctan'};
+  fact:'fact',arcsin:'arcsin',arcsen:'arcsin',asin:'arcsin',arccos:'arccos',acos:'arccos',arctan:'arctan',atan:'arctan',arctg:'arctan',sinh:'sinh',senh:'sinh',cosh:'cosh',tanh:'tanh',tgh:'tanh',cbrt:'cbrt',logdiez:'log10'};
 function parseExpr(src,vars=['x']){
-  const s=src.replace(/\s+/g,' ').replace(/[−–]/g,'-').replace(/·|×/g,'*').replace(/√/g,'sqrt').replace(/π/g,'pi').replace(/²/g,'^2').replace(/³/g,'^3').trim();
+  const s=src.replace(/\s+/g,' ').replace(/[−–]/g,'-').replace(/·|×/g,'*').replace(/√/g,'sqrt').replace(/π/g,'pi').replace(/²/g,'^2').replace(/³/g,'^3').replace(/÷/g,'/').replace(/∛/g,'cbrt').replace(/log\s*10\s*\(/gi,'logdiez(').replace(/log₁₀/g,'logdiez').trim();
   const toks=[]; let i=0;
   while(i<s.length){ const ch=s[i];
     if(ch===' '){i++;continue}
@@ -1810,7 +1830,7 @@ function parseExpr(src,vars=['x']){
     if(t.k==='v') return Vr(t.v); if(t.k==='c') return Cn(t.v);
     if(t.k==='('){ const e=expr(); eat(')'); return e }
     if(t.k==='|'){ const e=expr(); eat('|'); return Fn('abs',e) }
-    if(t.k==='f'){ let ex=null; if(peek()&&peek().k==='^'){p++; ex=unaryP()} const arg=peek()&&peek().k==='('?(p++,(()=>{const e=expr();eat(')');return e})()):power(); const f=Fn(t.v,arg); return ex?Pw(f,ex):f }
+    if(t.k==='f'){ let ex=null; if(peek()&&peek().k==='^'){p++; ex=unaryP()} const arg=peek()&&peek().k==='('?(p++,(()=>{const e=expr();eat(')');return e})()):power(); const E=u=>Pw(Cn('e'),u), HY={sinh:a=>Mu(Nn(new Fr(1n,2n)),Sb(E(a),E(Neg(a)))),cosh:a=>Mu(Nn(new Fr(1n,2n)),Ad(E(a),E(Neg(a)))),tanh:a=>Mu(Sb(E(a),E(Neg(a))),Pw(Ad(E(a),E(Neg(a))),-1)),cbrt:a=>Pw(a,Nn(new Fr(1n,3n))),log10:a=>Mu(Fn('ln',a),Pw(Fn('ln',Nn(F(10))),-1))}; const f=HY[t.v]?HY[t.v](arg):Fn(t.v,arg); return ex?Pw(f,ex):f }
     throw new Error('Expresión mal formada cerca de "'+(t.k)+'".'); }
   if(!toks.length) throw new Error('Escribe una expresión.');
   const r=expr(); if(p<toks.length) throw new Error('Sobra algo al final de la expresión.');
@@ -3370,26 +3390,124 @@ function solveNPV(rs,flows){ const i=nv(rs)/100, F=String(flows).split(/[\s;\n]+
     {title:'Relación beneficio/costo y recuperación',text:`B/C = ${numStr(costs?ben/costs:NaN)} ${ben/costs>1?'> 1: conviene':''}<br>Periodo de recuperación descontado: ${pb!==null?numStr(pb)+' periodos':'no se recupera'}`}];
   return {title:'VAN y TIR',result:`VAN = <b>${money(V)}</b> · TIR = <b>${irr!==null?pc(irr):'—'}</b>`,steps,plot:plotAfter('pl-van',[{fn:r=>npv(r/100),label:'VAN según la tasa (%)'}],{xr:[0,Math.max(30,(irr||0)*150)],pts:irr!==null?[{x:irr*100,y:0,label:'TIR'}]:[]})} }
 
+/* ================= Sistemas escritos con x, y, z (varios métodos) ================= */
+const SYSV=['x','y','z','w','t','u','v','a','b','c','d','p','q','r','s'];
+function parseLinSys(src){
+  const lines=src.split(/\n|;/).map(l=>l.trim()).filter(Boolean);
+  if(!lines.length) throw new Error('Escribe al menos una ecuación, una por línea.');
+  const allow=SYSV.slice(), eqs=lines.map((l,i)=>{ const p=l.split('='); if(p.length!==2) throw new Error(`La ecuación ${i+1} debe tener un solo signo =.`);
+    let L,R; try{ L=parseExpr(p[0],allow); R=parseExpr(p[1],allow) }catch(e){ throw new Error(`Ecuación ${i+1}: ${e.message}`) }
+    return {src:l,e:S(expandAll(S(Sb(L,R))))} });
+  const vars=SYSV.filter(v=>eqs.some(q=>has(q.e,v)));
+  if(!vars.length) throw new Error('No encontré incógnitas. Usa letras como x, y, z.');
+  const lin=eqs.every(q=>vars.every(v=>isN(S(D(q.e,v)))));
+  if(!lin) return {nonlin:true,vars,eqs};
+  const Aug=eqs.map((q,i)=>{ let rest=q.e; const row=vars.map(v=>{ const c=S(D(q.e,v)); rest=S(expandAll(S(Sb(rest,Mu(c,Vr(v)))))); return c.v });
+    if(!isN(rest)) throw new Error(`No pude separar el término independiente de la ecuación ${i+1}.`); row.push(rest.v.neg()); return row });
+  return {Aug,vars,eqs}
+}
+const vI=v=>`<i>${v}</i>`;
+function linH(cs,names,k){ let s=''; cs.forEach((c,j)=>{ if(c.isZero()) return; const a=c.abs(), t=(a.eq(ONE)?'':frHTML(a))+vI(names[j]); s+=s===''?(c.sign()<0?'−':'')+t:(c.sign()<0?' − ':' + ')+t });
+  if(k!==undefined&&!k.isZero()) s+=s===''?frHTML(k):(k.sign()<0?' − ':' + ')+frHTML(k.abs()); return s||'0' }
+const eqN=(row,names)=>`${linH(row.slice(0,-1),names)} = ${frHTML(row[row.length-1])}`;
+function solLine(names,sol){ return sol.map((v,j)=>`${vI(names[j])} = <b>${frHTML(v)}</b>`).join(', &nbsp;') }
+function checkStep(Aug,names,sol){ const ok=Aug.every(r=>r.slice(0,-1).reduce((s,a,j)=>s.add(a.mul(sol[j])),ZERO).eq(r[r.length-1]));
+  return {title:'Comprobación',text:Aug.map(r=>`${r.slice(0,-1).map((a,j)=>a.isZero()?null:`${par(a)}·(${frHTML(sol[j])})`).filter(Boolean).join(' + ')||'0'} = ${frHTML(r[r.length-1])} ✓`).join('<br>'),rule:ok?'Reemplazamos los valores en cada ecuación original y todas se cumplen.':'La comprobación falló.'} }
+function viaGJ(Aug,names,why){ const r=opSys(Aug,names); if(why) r.steps.unshift({title:'Método usado',text:why}); return r }
+function detSteps(A,label){ const n=A.length, d=detQuiet(A);
+  if(n===2) return {d,txt:`${label} = (${frHTML(A[0][0])})(${frHTML(A[1][1])}) − (${frHTML(A[0][1])})(${frHTML(A[1][0])}) = <b>${frHTML(d)}</b>`};
+  if(n===3){ const a=A, p=(i,j,k)=>a[0][i].mul(a[1][j]).mul(a[2][k]), t=(i,j,k)=>`(${frHTML(a[0][i])})(${frHTML(a[1][j])})(${frHTML(a[2][k])})`;
+    return {d,txt:`Regla de Sarrus:<br>${label} = ${t(0,1,2)} + ${t(1,2,0)} + ${t(2,0,1)} − ${t(2,1,0)} − ${t(0,2,1)} − ${t(1,0,2)}<br>= ${frHTML(p(0,1,2).add(p(1,2,0)).add(p(2,0,1)))} − (${frHTML(p(2,1,0).add(p(0,2,1)).add(p(1,0,2)))}) = <b>${frHTML(d)}</b>`} }
+  return {d,txt:`${label} = <b>${frHTML(d)}</b> <span class="muted">(calculado por eliminación de Gauss)</span>`} }
+function sysGauss(Aug,names){ const M=Aug.map(r=>r.slice()), m=M.length, n=names.length, steps=[]; let r=0; const piv=[];
+  for(let c=0;c<n&&r<m;c++){ let k=r; while(k<m&&M[k][c].isZero()) k++; if(k===m) continue;
+    const ops=[]; if(k!==r){ [M[k],M[r]]=[M[r],M[k]]; ops.push(`F${r+1} ↔ F${k+1}`) }
+    const chg=[]; for(let i=r+1;i<m;i++){ if(M[i][c].isZero()) continue; const f=M[i][c].div(M[r][c]); M[i]=M[i].map((x,j)=>x.sub(f.mul(M[r][j]))); ops.push(`F${i+1} → F${i+1} − ${par(f)}·F${r+1}`); chg.push(i) }
+    if(ops.length) steps.push({title:`Ceros debajo del pivote de la columna ${c+1} (${vI(names[c])})`,ops,mat:matHTML(M,{aug:1,pivot:[r,c],rows:chg}),rule:'Restamos a cada fila de abajo un múltiplo de la fila pivote para que quede 0 debajo del pivote.'});
+    piv.push([r,c]); r++ }
+  steps.unshift({title:'Matriz aumentada [A | b]',text:Aug.map(rw=>eqN(rw,names)).join('<br>'),mat:matHTML(Aug,{aug:1})});
+  steps.push({title:'Forma escalonada',text:'Debajo de la diagonal ya todo es 0. Ahora despejamos de abajo hacia arriba (sustitución regresiva).',mat:matHTML(M,{aug:1})});
+  const bad=M.findIndex(rw=>rw.slice(0,n).every(x=>x.isZero())&&!rw[n].isZero());
+  if(bad>=0){ steps.push({title:'Fila contradictoria',text:`La fila ${bad+1} dice 0 = ${frHTML(M[bad][n])}, lo cual es imposible.`,rule:'Si aparece 0 = k con k ≠ 0, el sistema es incompatible: no tiene solución.'}); return {title:'Sistema por Gauss',result:'<b>El sistema no tiene solución</b> <span class="muted">(incompatible)</span>',steps} }
+  if(piv.length<n){ const g=opSys(Aug,names); steps.push(g.steps[g.steps.length-1]); return {title:'Sistema por Gauss',result:g.result,steps} }
+  const sol=Array(n);
+  for(let i=piv.length-1;i>=0;i--){ const [rr,c]=piv[i], others=[]; let rhs=M[rr][n];
+    for(let j=c+1;j<n;j++){ if(M[rr][j].isZero()) continue; others.push(`${par(M[rr][j])}·(${frHTML(sol[j])})`); rhs=rhs.sub(M[rr][j].mul(sol[j])) }
+    sol[c]=rhs.div(M[rr][c]);
+    steps.push({title:`Despejamos ${vI(names[c])}`,text:`De la fila ${rr+1}: ${linH(M[rr].slice(0,n),names)} = ${frHTML(M[rr][n])}<br>${others.length?`${frHTML(M[rr][c])}·${vI(names[c])} = ${frHTML(M[rr][n])} − ${others.join(' − ')} = ${frHTML(rhs)}<br>`:''}${vI(names[c])} = ${M[rr][c].eq(ONE)?'':`${frHTML(rhs)} / ${par(M[rr][c])} = `}<b>${frHTML(sol[c])}</b>`}) }
+  steps.push(checkStep(Aug,names,sol));
+  return {title:'Sistema por Gauss',result:solLine(names,sol),steps} }
+function sysCramer(Aug,names){ const n=names.length; if(Aug.length!==n) throw new Error(`Cramer necesita tantas ecuaciones como incógnitas (hay ${Aug.length} ecuaciones y ${n} incógnitas). Usa Gauss o Gauss-Jordan.`);
+  const A=Aug.map(r=>r.slice(0,n)), b=Aug.map(r=>r[n]), steps=[{title:'Matriz de coeficientes A y vector b',text:Aug.map(rw=>eqN(rw,names)).join('<br>'),mat:`<div class="inl">A = ${matHTML(A)} b = ${matHTML(b.map(x=>[x]))}</div>`,rule:'Regla de Cramer: xᵢ = det(Aᵢ)/det(A), donde Aᵢ es A con la columna i cambiada por b. Solo sirve si det(A) ≠ 0.'}];
+  const D0=detSteps(A,'det(A)'); steps.push({title:'Determinante del sistema',text:D0.txt});
+  if(D0.d.isZero()){ const g=opSys(Aug,names); steps.push({title:'det(A) = 0',text:'Cramer no se puede aplicar: el sistema no tiene solución única. Lo clasificamos con Gauss-Jordan.'},...g.steps.slice(-1)); return {title:'Sistema por Cramer',result:g.result,steps} }
+  const sol=names.map((v,i)=>{ const Ai=A.map((r,k)=>r.map((x,j)=>j===i?b[k]:x)), Di=detSteps(Ai,`det(A<sub>${vI(v)}</sub>)`), xi=Di.d.div(D0.d);
+    steps.push({title:`Incógnita ${vI(v)}`,text:`Cambiamos la columna ${i+1} por b:<br>${Di.txt}<br>${vI(v)} = ${frHTML(Di.d)} / ${par(D0.d)} = <b>${frHTML(xi)}</b>`,mat:matHTML(Ai,{rows:[]})}); return xi });
+  steps.push(checkStep(Aug,names,sol)); return {title:'Sistema por Cramer',result:solLine(names,sol),steps} }
+function sysInverse(Aug,names){ const n=names.length; if(Aug.length!==n) throw new Error(`El método de la inversa necesita un sistema cuadrado (hay ${Aug.length} ecuaciones y ${n} incógnitas).`);
+  const A=Aug.map(r=>r.slice(0,n)), b=Aug.map(r=>[r[n]]), Ai=invQ(A), steps=[{title:'Forma matricial A·X = b',mat:`<div class="inl">${matHTML(A)} · ${matHTML(names.map(v=>[v]),{raw:true})} = ${matHTML(b)}</div>`,rule:'Si A tiene inversa: X = A⁻¹·b.'}];
+  if(!Ai){ const g=opSys(Aug,names); steps.push({title:'A no tiene inversa',text:'det(A) = 0, así que no hay solución única. Lo clasificamos con Gauss-Jordan.'},...g.steps.slice(-1)); return {title:'Sistema por matriz inversa',result:g.result,steps} }
+  steps.push({title:'Inversa de A',text:'La calculamos con Gauss-Jordan sobre [A | I] (puedes ver ese detalle en Matrices → Inversa).',mat:`<div class="inl">A⁻¹ = ${matHTML(Ai)}</div>`});
+  const X=matMul(Ai,b), sol=X.map(r=>r[0]);
+  steps.push({title:'Multiplicamos X = A⁻¹·b',text:names.map((v,i)=>`${vI(v)} = ${Ai[i].map((a,k)=>`${par(a)}·${par(b[k][0])}`).join(' + ')} = <b>${frHTML(sol[i])}</b>`).join('<br>')});
+  steps.push(checkStep(Aug,names,sol)); return {title:'Sistema por matriz inversa',result:solLine(names,sol),steps} }
+function sys2x2(Aug,names,mode){ if(names.length!==2||Aug.length!==2) return viaGJ(Aug,names,`Sustitución, igualación y reducción se explican para 2 ecuaciones con 2 incógnitas. Este sistema es de ${Aug.length}×${names.length}, así que lo resolvemos con Gauss-Jordan.`);
+  const [[a1,b1,c1],[a2,b2,c2]]=Aug, [X,Y]=names, steps=[{title:'Sistema',text:`(1) ${eqN(Aug[0],names)}<br>(2) ${eqN(Aug[1],names)}`}], T={sus:'Sustitución',igu:'Igualación',red:'Reducción'}[mode];
+  const fin=(yv,how)=>{ const xv=c1.sub(b1.mul(yv)).div(a1); steps.push({title:`Hallamos ${vI(X)}`,text:`${how}: ${frHTML(a1)}·${vI(X)} + ${par(b1)}·(${frHTML(yv)}) = ${frHTML(c1)} → ${vI(X)} = <b>${frHTML(xv)}</b>`}); steps.push(checkStep(Aug,names,[xv,yv])); return {title:`Sistema por ${T.toLowerCase()}`,result:solLine(names,[xv,yv]),steps} };
+  const degen=(k,rhs)=>{ steps.push({title:'Ecuación sin incógnita',text:`Queda 0·${vI(Y)} = ${frHTML(rhs)}.`,rule:rhs.isZero()?'0 = 0 siempre se cumple: las dos ecuaciones son la misma recta y hay infinitas soluciones.':'0 = número distinto de 0 es imposible: las rectas son paralelas y no hay solución.'}); const g=opSys(Aug,names); return {title:`Sistema por ${T.toLowerCase()}`,result:g.result,steps} };
+  if(a1.isZero()||a2.isZero()) return viaGJ(Aug,names,`Una ecuación no tiene ${vI(X)}; con estos coeficientes lo más directo es Gauss-Jordan.`);
+  if(mode==='sus'){ const p=c1.div(a1), q=b1.div(a1).neg();
+    steps.push({title:`Despejamos ${vI(X)} de (1)`,text:`${vI(X)} = ${linH([q],[Y],p)}`,rule:'Sustitución: despeja una incógnita de una ecuación y reemplázala en la otra.'});
+    const k=b2.add(a2.mul(q)), rhs=c2.sub(a2.mul(p));
+    steps.push({title:'Reemplazamos en (2)',text:`${frHTML(a2)}·(${linH([q],[Y],p)}) + ${par(b2)}·${vI(Y)} = ${frHTML(c2)}<br>${linH([k],[Y])} = ${frHTML(rhs)}`});
+    if(k.isZero()) return degen(k,rhs); const yv=rhs.div(k); steps.push({title:`Despejamos ${vI(Y)}`,text:`${vI(Y)} = ${frHTML(rhs)} / ${par(k)} = <b>${frHTML(yv)}</b>`}); return fin(yv,`Reemplazamos en ${vI(X)} = ${linH([q],[Y],p)}, o en (1)`) }
+  if(mode==='igu'){ const p1=c1.div(a1), q1=b1.div(a1).neg(), p2=c2.div(a2), q2=b2.div(a2).neg();
+    steps.push({title:`Despejamos ${vI(X)} de las dos ecuaciones`,text:`De (1): ${vI(X)} = ${linH([q1],[Y],p1)}<br>De (2): ${vI(X)} = ${linH([q2],[Y],p2)}`,rule:'Igualación: despeja la misma incógnita en ambas ecuaciones e iguala las expresiones.'});
+    const k=q1.sub(q2), rhs=p2.sub(p1);
+    steps.push({title:'Igualamos',text:`${linH([q1],[Y],p1)} = ${linH([q2],[Y],p2)}<br>${linH([k],[Y])} = ${frHTML(rhs)}`});
+    if(k.isZero()) return degen(k,rhs); const yv=rhs.div(k); steps.push({title:`Despejamos ${vI(Y)}`,text:`${vI(Y)} = ${frHTML(rhs)} / ${par(k)} = <b>${frHTML(yv)}</b>`}); return fin(yv,'Reemplazamos en (1)') }
+  const gcd=(a,b)=>b?gcd(b,a%b):a, ints=a1.d===1n&&a2.d===1n, A1=a1.n<0n?-a1.n:a1.n, A2=a2.n<0n?-a2.n:a2.n, L=ints?A1/gcd(A1,A2)*A2:null;
+  const m1=ints?new Fr(L,1n).div(a1):a2, m2=ints?new Fr(L,1n).div(a2):a1;
+  const r1=Aug[0].map(x=>x.mul(m1)), r2=Aug[1].map(x=>x.mul(m2));
+  steps.push({title:`Igualamos los coeficientes de ${vI(X)}`,text:`(1)·${par(m1)}: ${eqN(r1,names)}<br>(2)·${par(m2)}: ${eqN(r2,names)}`,rule:'Reducción (suma y resta): multiplica las ecuaciones para que una incógnita tenga el mismo coeficiente y réstalas para eliminarla.'});
+  const k=r1[1].sub(r2[1]), rhs=r1[2].sub(r2[2]);
+  steps.push({title:'Restamos las ecuaciones',text:`(${eqN(r1,names)}) − (${eqN(r2,names)})<br>${linH([k],[Y])} = ${frHTML(rhs)}`});
+  if(k.isZero()) return degen(k,rhs); const yv=rhs.div(k); steps.push({title:`Despejamos ${vI(Y)}`,text:`${vI(Y)} = ${frHTML(rhs)} / ${par(k)} = <b>${frHTML(yv)}</b>`}); return fin(yv,'Reemplazamos en (1)') }
+function sysNonlin(eqs,vars){ const n=vars.length; if(eqs.length!==n||n>3) throw new Error('El sistema no es lineal. Para sistemas no lineales necesito tantas ecuaciones como incógnitas (hasta 3).');
+  const F=x=>{ const env=Object.fromEntries(vars.map((v,i)=>[v,x[i]])); return eqs.map(q=>ev(q.e,env)) }, sols=solveSys(F,n,10).sort((a,b)=>a[0]-b[0]);
+  const steps=[{title:'Sistema no lineal',text:eqs.map((q,i)=>`(${i+1}) ${H(q.e)} = 0`).join('<br>'),rule:'Hay potencias, productos de incógnitas o funciones, así que Gauss, Cramer y los demás métodos lineales no se aplican. Si el sistema es sencillo, en clase se resuelve despejando una incógnita y sustituyendo en la otra.'},
+    {title:'Método de Newton para sistemas',text:`Partimos de muchos puntos iniciales y repetimos X<sub>k+1</sub> = X<sub>k</sub> − J⁻¹·F(X<sub>k</sub>), donde J es la matriz de derivadas parciales (jacobiana), hasta que F(X) = 0.`,rule:'Se buscan soluciones reales entre −10 y 10.'}];
+  if(!sols.length){ steps.push({title:'Resultado',text:'No se encontraron soluciones reales en esa zona.'}); return {title:'Sistema no lineal',result:'<b>No se encontraron soluciones reales</b> entre −10 y 10',steps} }
+  const L=sols.map(x=>x.map((v,i)=>`${vI(vars[i])} = <b>${cH(v)}</b>`).join(', &nbsp;'));
+  steps.push({title:`${sols.length} solución${sols.length>1?'es':''}`,text:L.join('<br>')},{title:'Comprobación',text:sols.map(x=>`F = (${F(x).map(v=>numStr(Math.abs(v)<1e-12?0:v)).join(', ')}) ✓`).join('<br>')});
+  return {title:'Sistema no lineal (numérico)',result:L.join('<br>'),steps} }
+function solveLinSys(src,method){ const P=parseLinSys(src); if(P.nonlin) return sysNonlin(P.eqs,P.vars); const {Aug,vars}=P;
+  const head=`<div class="muted" style="font-size:.85rem;margin-bottom:4px">${Aug.length} ecuaciones · incógnitas ${vars.map(vI).join(', ')}</div>`;
+  let r; if(method==='gauss') r=sysGauss(Aug,vars); else if(method==='cramer') r=sysCramer(Aug,vars); else if(method==='inv') r=sysInverse(Aug,vars);
+  else if(['sus','igu','red'].includes(method)) r=sys2x2(Aug,vars,method); else { r=opSys(Aug,vars); r.title='Sistema por Gauss-Jordan' }
+  r.result=head+r.result; return r }
+
 /* ================= Interfaz ================= */
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const FREE=4, today=()=>{const d=new Date();return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`};
 const used=()=>{const u=store.get('cp_usage',{});return u.day===today()?u.n:0};
-function credits(){ const left=Math.max(0,FREE-used()); $('credits').innerHTML=`Pasos gratis hoy: <b>${left} de ${FREE}</b> <span class="dots">${Array.from({length:FREE},(_,i)=>`<i class="${i<left?'':'off'}"></i>`).join('')}</span>` }
-function take(){ const n=used(); if(n>=FREE) return false; store.set('cp_usage',{day:today(),n:n+1}); return true }
+function credits(){ if(!LIMITS){ $('credits').hidden=true; return } const left=Math.max(0,FREE-used()); $('credits').innerHTML=`Pasos gratis hoy: <b>${left} de ${FREE}</b> <span class="dots">${Array.from({length:FREE},(_,i)=>`<i class="${i<left?'':'off'}"></i>`).join('')}</span>` }
+const LIMITS=false;
+function take(){ if(!LIMITS) return true; const n=used(); if(n>=FREE) return false; store.set('cp_usage',{day:today(),n:n+1}); return true }
 
 const LAST={}, BIGN=6;
 function present(outId,fn,demo=false){
   const out=$(outId);
   let res; try{res=fn()}catch(e){out.innerHTML=`<div class="error">${e.message}</div>`;delete LAST[outId];return}
-  const state=demo?'steps':res.big?'big':SET.mode==='res'?'hidden':(take()?'steps':'lock');
+  const state=demo?'steps':(LIMITS&&res.big)?'big':SET.mode==='res'?'hidden':(take()?'steps':'lock');
   LAST[outId]={fn,state,demo}; draw(outId,res);
 }
 function draw(outId,res){
   const out=$(outId), L=LAST[outId];
-  let h=`<div><span class="eyebrow">${res.title}</span>${L.demo?'<span class="tag">Ejemplo, no gasta usos</span>':''}</div><div class="result">${res.result}</div>${res.plot?res.plot.canvas:''}${res.tri?`<canvas class="tri" id="tri-${outId}"></canvas>`:''}`;
+  let h=`<div><span class="eyebrow">${res.title}</span>${L.demo?'<span class="tag">Ejemplo</span>':''}</div><div class="result">${res.result}</div>${res.plot?res.plot.canvas:''}${res.tri?`<canvas class="tri" id="tri-${outId}"></canvas>`:''}`;
   if(L.state==='steps') h+=`<h3 class="steps-h">Paso a paso</h3>${renderSteps(res.steps)}`;
-  else if(L.state==='hidden') h+=`<div class="upsell"><p>Modo solo resultado: no se gastó ningún uso.</p><button class="btn pri" id="rv-${outId}">Ver el paso a paso (usa 1 de tus ${FREE} de hoy)</button></div>`;
+  else if(L.state==='hidden') h+=`<div class="upsell"><p>Modo solo resultado.</p><button class="btn pri" id="rv-${outId}">Ver el paso a paso${LIMITS?` (usa 1 de tus ${FREE} de hoy)`:''}</button></div>`;
   else if(L.state==='big') h+=`<div class="lock"><h3>Paso a paso para tamaños mayores a ${BIGN}×${BIGN}</h3><p>El resultado exacto de arriba es gratis a cualquier tamaño. La explicación de matrices o sistemas de más de ${BIGN}×${BIGN} (aquí son ${res.steps.length} pasos) es parte del <b>Plan Estudiante</b>. <span class="muted">Disponible pronto, con pago por Yape.</span></p></div>`;
   else h+=`<div class="lock"><h3>Ya usaste tus ${FREE} resoluciones con pasos de hoy</h3><p>El resultado de arriba sigue siendo gratis. Esta resolución tiene ${res.steps.length} pasos explicados, con las reglas que se aplican en cada uno.</p><p>Mañana se renuevan tus ${FREE} usos. Con el <b>Plan Estudiante</b> tendrás pasos ilimitados y tus matrices guardadas en la nube. <span class="muted">Disponible pronto, con pago por Yape.</span></p></div>`;
   out.innerHTML=h; credits();
@@ -3466,7 +3584,7 @@ $('sclr').onclick=()=>{buildGrid('gs',+$('sr').value,+$('sc').value+1,null,true)
 $('ssolve').onclick=()=>present('o-sys',sysFn);
 
 let lastQuad=null;
-$('reset').onclick=()=>{store.set('cp_usage',{day:today(),n:0});credits()};
+if($('reset')) $('reset').onclick=()=>{store.set('cp_usage',{day:today(),n:0});credits()};
 // Integrales
 const intFn=()=>{ const r=solveIntegral($('ifx').value,$('ia').value.trim(),$('ib').value.trim()); if(r.methods&&r.methods.length) r.result+=`<div class="mtags">${r.methods.map(m=>`<span>${m}</span>`).join('')}</div>`; return r };
 $('isolve').onclick=()=>present('o-int',intFn);
@@ -3578,8 +3696,8 @@ $('lvsolve').onclick=()=>present('o-lap',()=>laplaceIVP(parseFr($('la').value,'a
   apply() })();
 // ===== Menú por cursos y herramientas nuevas =====
 const COURSES=[
-  {id:'bas',name:'Matemática básica',tabs:[['b-eq','Ecuaciones'],['quad','2.º grado'],['b-pol','Polinomios'],['b-ineq','Inecuaciones'],['b-tri','Triángulos'],['b-ari','Aritmética y %'],['b-gr','Graficadora']]},
-  {id:'al',name:'Álgebra lineal',tabs:[['mat','Matrices'],['sys','Sistemas de ecuaciones']]},
+  {id:'bas',name:'Matemática básica',tabs:[['b-eq','Ecuaciones'],['b-sys','Sistemas x, y, z'],['quad','2.º grado'],['b-pol','Polinomios'],['b-ineq','Inecuaciones'],['b-tri','Triángulos'],['b-ari','Aritmética y %'],['b-gr','Graficadora']]},
+  {id:'al',name:'Álgebra lineal',tabs:[['mat','Matrices'],['sys','Sistemas (matriz)']]},
   {id:'c1',name:'Cálculo I',tabs:[['c-lim','Límites'],['c-der','Derivadas'],['c-app','Aplicaciones de la derivada']]},
   {id:'c2',name:'Cálculo II',tabs:[['int','Integrales'],['c-iapp','Aplicaciones de la integral'],['c-ser','Series']]},
   {id:'c3',name:'Cálculo III',tabs:[['c-par','Derivadas parciales'],['c-ext','Máximos y Lagrange'],['c-mul','Integrales múltiples']]},
@@ -3639,6 +3757,9 @@ const TOOLS={
     {id:'lu',label:'LU',fields:[['s','Sistema (coeficientes | término independiente)','2 1 1 | 5\n4 -6 0 | -2\n-2 7 2 | 9',{ta:1}]],btn:'Descomponer y resolver',run:v=>solveLUsys(v.s)}]},
   'n-ode':{h:'EDO numérica',guide:'g-e-numericos',modes:[{id:'o',fields:[['f','y′ = f(x, y)','x + y'],['x0','x₀','0',{s:1}],['y0','y(x₀)','1',{s:1}],['h','Paso h','0.1',{s:1}],['n','Pasos','10',{s:1}],['m','Método','rk',{s:1,sel:[['eu','Euler'],['he','Euler mejorado (Heun)'],['rk','Runge-Kutta 4']]}]],btn:'Calcular',run:v=>solveODEnum(v.f,v.x0,v.y0,v.h,v.n,v.m)}]},
   'b-eq':{h:'Ecuaciones',guide:'g-b-ecuaciones',modes:[{id:'e',fields:[['e','Ecuación','x^3 - 6x^2 + 11x - 6 = 0']],btn:'Resolver',run:v=>solveEquation(v.e),hint:'Lineales, cuadráticas, de grado mayor (con Ruffini), con fracciones y trascendentes (numéricas).',chips:[['3x + 5 = 2x − 7',{e:'3x+5=2x-7'}],['x³ − 6x² + 11x − 6 = 0',{e:'x^3-6x^2+11x-6=0'}],['x⁴ − 5x² + 4 = 0',{e:'x^4-5x^2+4=0'}],['(x² − 1)/(x − 1) = 3',{e:'(x^2-1)/(x-1)=3'}],['eˣ = 3',{e:'e^x=3'}],['sen x = 1/2',{e:'sin(x)=1/2'}]]}]},
+  'b-sys':{h:'Sistemas de ecuaciones',guide:'g-n-sistemas',modes:[{id:'s',fields:[['s','Ecuaciones (una por línea)','2x + y - z = 8\n-3x - y + 2z = -11\n-2x + y + 2z = -3',{ta:1}],['m','Método','gauss',{sel:[['gauss','Gauss (escalonar y sustitución regresiva)'],['gj','Gauss-Jordan'],['cramer','Cramer (determinantes)'],['inv','Matriz inversa'],['sus','Sustitución (2×2)'],['igu','Igualación (2×2)'],['red','Reducción o suma y resta (2×2)']]}]],btn:'Resolver el sistema',run:v=>solveLinSys(v.s,v.m),
+    hint:'Escribe cada ecuación en una línea con x, y, z (o w, t…). Acepta fracciones y decimales: x/2 + 0.5y = 3. Elige el método que te piden en clase.',
+    chips:[['2×2 por sustitución',{s:'3x + 2y = 7\nx - y = -1',m:'sus'}],['2×2 por igualación',{s:'2x + y = 5\nx - 3y = -8',m:'igu'}],['2×2 por reducción',{s:'5x + 3y = 1\n2x - 4y = 16',m:'red'}],['3×3 por Gauss',{s:'2x + y - z = 8\n-3x - y + 2z = -11\n-2x + y + 2z = -3',m:'gauss'}],['3×3 por Cramer',{s:'x + y + z = 6\n2x - y + z = 3\nx + 2y - z = 2',m:'cramer'}],['Infinitas soluciones',{s:'x + y + z = 2\n2x + 2y + 2z = 4\nx - y = 0',m:'gauss'}],['Sin solución',{s:'x + y = 2\nx + y = 5',m:'red'}]]}]},
   'b-pol':{h:'Polinomios',guide:'g-b-ecuaciones',modes:[
     {id:'f',label:'Factorizar',fields:[['p','P(x)','x^3 - 6x^2 + 11x - 6']],btn:'Factorizar',run:v=>solveFactor(v.p),chips:[['x⁴ − 10x² + 9',{p:'x^4-10x^2+9'}],['2x³ + 3x² − 8x + 3',{p:'2x^3+3x^2-8x+3'}],['x³ − 8',{p:'x^3-8'}]]},
     {id:'d',label:'Dividir',fields:[['p','Dividendo P(x)','x^3 - 2x + 1'],['d','Divisor D(x)','x - 1']],btn:'Dividir',run:v=>solvePolyDiv(v.p,v.d),chips:[['(x³ − 2x + 1) ÷ (x − 1)',{p:'x^3-2x+1',d:'x-1'}],['(2x⁴ + x² − 3) ÷ (x² + 1)',{p:'2x^4+x^2-3',d:'x^2+1'}]]}]},
@@ -3703,6 +3824,53 @@ $('subtabs').innerHTML=COURSES.flatMap(c=>c.tabs.map(([t,n])=>`<button data-tab=
 document.querySelectorAll('#courses button').forEach(b=>b.onclick=()=>{ const c=COURSES.find(x=>x.id===b.dataset.course), last=store.get('cp_ct_'+c.id,c.tabs[0][0]); goTab(c.tabs.some(x=>x[0]===last)?last:c.tabs[0][0]) });
 document.querySelectorAll('#subtabs button').forEach(b=>b.onclick=()=>{ const c=courseOf(b.dataset.tab); store.set('cp_ct_'+c.id,b.dataset.tab); goTab(b.dataset.tab) });
 let rzT=null; addEventListener('resize',()=>{ clearTimeout(rzT); rzT=setTimeout(()=>{ const t=store.get('cp_tab','mat'); if(LAST['o-'+t]&&$('o-'+t).querySelector('canvas.plot')) try{ draw('o-'+t,LAST['o-'+t].fn()) }catch(e){} },250) });
+
+// ===== Teclado matemático en pantalla =====
+(()=>{ const MATH='section input:not([type=number]):not(#sname):not(.sz), section textarea';
+  const KB={
+    'Básico':[['x','x'],['y','y'],['z','z'],['7'],['8'],['9'],['÷','/'],
+             ['a/b','(|)/()','f'],['x²','^2'],['xⁿ','^(|)'],['4'],['5'],['6'],['×','*'],
+             ['√','sqrt(|)'],['∛','cbrt(|)'],['(','('],['1'],['2'],['3'],['−','-'],
+             ['π','pi'],['e','e'],[')',')'],['0'],['.'],['=',' = '],['+','+']],
+    'Funciones':[['ln','ln(|)'],['log₁₀','log10(|)'],['eˣ','e^(|)'],['n!','fact(|)'],['y','y'],['∞','inf'],['^','^'],
+             ['t','t'],['n','n'],['k','k'],['a','a'],['b','b'],['c','c'],[',',', '],
+             ['<',' < '],['>',' > '],['≤',' <= '],['≥',' >= '],['(','('],[')',')'],['ⁿ√','(|)^(1/)']],
+    'Trigonometría':[['sen','sin(|)'],['cos','cos(|)'],['tan','tan(|)'],['π','pi'],['π/2','pi/2'],['π/3','pi/3'],['π/6','pi/6'],
+             ['csc','csc(|)'],['sec','sec(|)'],['cot','cot(|)'],['x','x'],['θ','t'],['(','('],[')',')'],
+             ['arcsen','arcsin(|)'],['arccos','arccos(|)'],['arctan','arctan(|)'],['senh','sinh(|)'],['cosh','cosh(|)'],['tanh','tanh(|)'],['²','^2']]};
+  const tabs=Object.keys(KB); let tab=store.get('cp_kbtab','Básico'); if(!KB[tab]) tab='Básico';
+  const touch=matchMedia('(pointer:coarse)').matches; let pref=store.get('cp_kbd',touch), cur=null;
+  const wrap=document.createElement('div'); wrap.id='kbd'; wrap.className='kbd'; wrap.hidden=true; wrap.setAttribute('role','group'); wrap.setAttribute('aria-label','Teclado matemático');
+  const fab=document.createElement('button'); fab.id='kbfab'; fab.className='kbfab'; fab.hidden=true; fab.type='button'; fab.innerHTML='<span aria-hidden="true">∑</span> Teclado'; fab.title='Abrir el teclado matemático';
+  document.body.append(wrap,fab);
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+  function render(){ wrap.innerHTML=`<div class="kbtabs">${tabs.map(t=>`<button type="button" data-kt="${t}" aria-pressed="${t===tab}">${t}</button>`).join('')}<button type="button" class="kbx" data-ka="close" aria-label="Cerrar teclado">✕</button></div>
+    <div class="kbgrid">${KB[tab].map(([l,ins])=>`<button type="button" data-ins="${esc(ins===undefined?l:ins)}" class="${/^[0-9.]$/.test(l)?'kn':/^[+\-−×÷=]$|^\/$/.test(l)?'ko':l.length>4?'kl':''}">${l}</button>`).join('')}</div>
+    <div class="kbbar"><button type="button" data-ka="abc">ABC</button><button type="button" data-ka="left" aria-label="Mover a la izquierda">←</button><button type="button" data-ka="right" aria-label="Mover a la derecha">→</button><button type="button" data-ka="nl" class="kbnl">⏎ Línea</button><button type="button" data-ka="del" aria-label="Borrar">⌫</button><button type="button" data-ka="go" class="kbgo">Resolver</button></div>` ;
+    wrap.querySelector('.kbnl').hidden=!(cur&&cur.tagName==='TEXTAREA') }
+  function insert(tpl){ if(!cur) return; const s=cur.selectionStart??cur.value.length, e=cur.selectionEnd??s, sel=cur.value.slice(s,e), i=tpl.indexOf('|'), t=tpl.replace('|',sel);
+    cur.setRangeText(t,s,e,'end'); const pos=i<0?s+t.length:(sel?s+t.length:s+i); cur.setSelectionRange(pos,pos); cur.dispatchEvent(new Event('input',{bubbles:true})) }
+  function action(a){ if(!cur) return; const s=cur.selectionStart, e=cur.selectionEnd;
+    if(a==='left') cur.setSelectionRange(Math.max(0,s-1),Math.max(0,s-1));
+    else if(a==='right') cur.setSelectionRange(Math.min(cur.value.length,e+1),Math.min(cur.value.length,e+1));
+    else if(a==='del'){ if(s!==e) cur.setRangeText('',s,e,'end'); else if(s>0) cur.setRangeText('',s-1,s,'end'); cur.dispatchEvent(new Event('input',{bubbles:true})) }
+    else if(a==='nl') insert('\n');
+    else if(a==='abc'){ pref=false; store.set('cp_kbd',false); const el=cur; hide(); el.setAttribute('inputmode','text'); el.blur(); setTimeout(()=>el.focus(),30) }
+    else if(a==='close'){ const el=cur; hide(); el.blur() }
+    else if(a==='go'){ const sec=cur.closest('.tmode')||cur.closest('[id^="lap-"],[id^="ode-"]')||cur.closest('.panel'); const b=sec&&(sec.querySelector('[data-run]')||sec.querySelector('.btn.pri')); const el=cur; hide(); el.blur(); if(b) b.click() } }
+  function show(el){ cur=el; el.setAttribute('inputmode','none'); render(); wrap.hidden=false; fab.hidden=true; document.body.classList.add('kb-open');
+    setTimeout(()=>{ const r=el.getBoundingClientRect(), kh=wrap.offsetHeight; if(r.bottom>innerHeight-kh-10) scrollBy({top:r.bottom-(innerHeight-kh)+24,behavior:'smooth'}) },60) }
+  function hide(){ wrap.hidden=true; document.body.classList.remove('kb-open'); if(cur) cur.removeAttribute('inputmode'); cur=null }
+  wrap.addEventListener('pointerdown',e=>{ if(e.target.closest('button')) e.preventDefault() });
+  wrap.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.kt){ tab=b.dataset.kt; store.set('cp_kbtab',tab); render(); return }
+    if(b.dataset.ins!==undefined) insert(b.dataset.ins); else if(b.dataset.ka) action(b.dataset.ka) });
+  fab.addEventListener('pointerdown',e=>e.preventDefault());
+  fab.onclick=()=>{ const el=fab._el; if(!el) return; pref=true; store.set('cp_kbd',true); el.blur(); show(el); el.focus() };
+  document.addEventListener('focusin',e=>{ const el=e.target; if(!el.matches||!el.matches(MATH)) return;
+    if(pref){ if(cur!==el) show(el) } else { fab._el=el; fab.hidden=false } });
+  document.addEventListener('focusout',()=>setTimeout(()=>{ const a=document.activeElement; if(a&&a.matches&&a.matches(MATH)) return; if(!wrap.hidden) hide(); fab.hidden=true },120));
+})();
 
 // Formato y modo
 Object.assign(SET,store.get('cp_set',{}));
