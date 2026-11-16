@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SismoPaso</title>
+<meta name="description" content="Análisis sísmico E.030-2026 en el navegador, con visor 3D y asistente normativo para estudiantes.">
+<link rel="stylesheet" href="src/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="logo">◢◣</span> SismoPaso <small>análisis sísmico E.030-2026 · prototipo educativo</small></div>
+  <div class="top-actions">
+    <button id="btnEjemplo" class="ghost">Cargar ejemplo</button>
+    <button id="btnGuardar" class="ghost">Guardar</button>
+    <label class="ghost file">Abrir<input id="fileAbrir" type="file" accept=".json"></label>
+    <button id="btnInforme" class="ghost">Informe (PDF)</button>
+    <button id="btnTema" class="ghost" title="Tema claro u oscuro">◐</button>
+  </div>
+</header>
+
+<main class="layout">
+  <aside class="panel" id="panel">
+    <nav class="steps" id="steps">
+      <button data-step="1" class="on">1 · Proyecto</button>
+      <button data-step="2">2 · Planta</button>
+      <button data-step="3">3 · Secciones</button>
+      <button data-step="4">4 · Cargas</button>
+    </nav>
+
+    <section class="step" data-step="1">
+      <h3>Datos del proyecto</h3>
+      <label>Nombre <input id="nombre" type="text"></label>
+      <label>Uso del edificio
+        <select id="uso"></select>
+      </label>
+      <div class="row">
+        <label>Zona sísmica <select id="zona"><option>4</option><option>3</option><option>2</option><option>1</option></select></label>
+        <label>Suelo <select id="suelo"><option>S0</option><option>S1</option><option selected>S2</option><option>S3</option><option>S4</option></select></label>
+      </div>
+      <div class="row">
+        <label>Vs30 (m/s, opcional) <input id="vs30" type="number" min="0" step="10" placeholder="sin dato"></label>
+        <label>Categoría <select id="categoria"><option>A1</option><option>A2</option><option>B</option><option selected>C</option></select></label>
+      </div>
+      <div class="row">
+        <label>Sistema en X <select id="sistemaX"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option></select></label>
+        <label>Sistema en Y <select id="sistemaY"><option>PÓRTICOS</option><option>DUAL</option><option>MUROS</option></select></label>
+      </div>
+      <label class="check"><input id="dir30" type="checkbox"> Sismo 100% + 30% en las derivas (arts. 33.3 y 43)</label>
+      <div class="hint" id="hintProyecto"></div>
+    </section>
+
+    <section class="step hidden" data-step="2">
+      <h3>Ejes y pisos</h3>
+      <label>Luces en X (m, separadas por comas) <input id="ejesX" type="text"></label>
+      <label>Luces en Y (m) <input id="ejesY" type="text"></label>
+      <div class="row3">
+        <label>N.º de pisos <input id="nPisos" type="number" min="1" max="30"></label>
+        <label>Altura piso 1 (m) <input id="h1" type="number" step="0.05"></label>
+        <label>Altura típica (m) <input id="h" type="number" step="0.05"></label>
+      </div>
+      <div class="modo">
+        <span>Toca la planta para</span>
+        <button data-modo="pano" class="on">quitar o poner paños</button>
+        <button data-modo="placa">poner placas</button>
+      </div>
+      <svg id="planta" class="planta" viewBox="0 0 100 100"></svg>
+      <div class="hint">Los paños grises están vacíos (sin losa ni columnas). Las placas se dibujan en naranja sobre un eje.</div>
+    </section>
+
+    <section class="step hidden" data-step="3">
+      <h3>Secciones y material</h3>
+      <div class="row">
+        <label>Columna b (X) m <input id="colB" type="number" step="0.05"></label>
+        <label>Columna h (Y) m <input id="colH" type="number" step="0.05"></label>
+      </div>
+      <div class="row">
+        <label>Viga b (m) <input id="vigB" type="number" step="0.05"></label>
+        <label>Viga h (m) <input id="vigH" type="number" step="0.05"></label>
+      </div>
+      <div class="row">
+        <label>Espesor de placa (m) <input id="placaT" type="number" step="0.05"></label>
+        <label>f'c (kg/cm²) <input id="fc" type="number" step="5"></label>
+      </div>
+      <button id="btnPredim" class="secondary">Sugerir predimensionamiento</button>
+      <div id="predim" class="tips"></div>
+    </section>
+
+    <section class="step hidden" data-step="4">
+      <h3>Cargas (E.020)</h3>
+      <div class="row">
+        <label>CM pisos (kg/m²) <input id="cm" type="number" step="10"></label>
+        <label>CM azotea (kg/m²) <input id="cmRoof" type="number" step="10"></label>
+      </div>
+      <div class="row">
+        <label>CV pisos (kg/m²) <input id="cv" type="number" step="10"></label>
+        <label>CV azotea (kg/m²) <input id="cvRoof" type="number" step="10"></label>
+      </div>
+      <div class="hint" id="hintCargas"></div>
+    </section>
+
+    <button id="btnAnalizar" class="primary">Analizar sismo ▶</button>
+    <div id="estado" class="estado"></div>
+  </aside>
+
+  <section class="vista">
+    <div class="visor-wrap">
+      <div id="visor" class="visor"></div>
+      <div class="visor-bar">
+        <select id="modoVista">
+          <option value="modelo">Modelo</option>
+          <option value="deriva">Derivas por piso</option>
+        </select>
+        <select id="selModo"></select>
+        <label class="mini">Escala <input id="escala" type="range" min="0" max="100" value="45"></label>
+        <button id="btnVista" class="ghost small">Vista inicial</button>
+      </div>
+      <div id="leyenda" class="leyenda"></div>
+    </div>
+
+    <div class="resultados" id="resultados">
+      <div class="vacio">Arma tu edificio a la izquierda y pulsa <b>Analizar sismo</b>. El modelo de ejemplo (4 pisos, columnas de 60x60) ya está cargado.</div>
+    </div>
+  </section>
+</main>
+
+<div id="informe" class="informe"></div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script src="src/solver.js"></script>
+<script src="src/e030.js"></script>
+<script src="src/irreg.js"></script>
+<script src="src/asistente.js"></script>
+<script src="src/visor.js"></script>
+<script src="src/app.js"></script>
+</body>
+</html>
