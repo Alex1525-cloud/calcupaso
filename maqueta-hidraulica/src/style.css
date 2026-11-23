@@ -159,6 +159,8 @@ body.present .tour{width:380px;top:16px}
 body.present .tour h3{font-size:20px} body.present .tour p{font-size:15px}
 body.present .lab{font-size:13px}
 @media (max-width:980px){
+  body:not(.present){grid-template-rows:auto auto auto auto auto}
+  body:not(.present) .layout{min-height:auto}
   .layout{grid-template-columns:1fr}
   .stage{min-height:62vh}
   .panel{border-left:0;border-top:1px solid var(--line);max-height:none}
@@ -175,6 +177,9 @@ body.present .lab{font-size:13px}
   .lbl-theme{display:none}
   .tour{width:auto;right:16px;left:16px;top:38px}
   .tour p{font-size:12px}
+  .lab{font-size:10px;padding:2px 5px}
+  .stage{min-height:70vh}
+  .dims{display:none}
   .hint,.flowtag{display:none}
   .legend{left:16px;right:16px;gap:8px}
   .stat{padding:10px 16px}
