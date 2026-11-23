@@ -907,6 +907,7 @@ function loop() {
 applyTheme(); applyLight(); buildHyd(); syncInputs(); renderCalc(); resize();
 goTo(VIEWS.iso.p, VIEWS.iso.t, 0.01);
 showTour(0);
+if (window.innerWidth < 600) { $('tour').classList.add('hidden'); $('btnTour').classList.remove('on'); labelEls.forEach(function (L) { L.el.classList.remove('hi'); }); }
 loop();
 window.HID = { S: S, compute: compute, setView: setView, showTour: showTour, buildHyd: buildHyd, renderCalc: renderCalc, camera: camera, controls: controls, scene: scene };
 })();
