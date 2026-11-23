@@ -8,6 +8,7 @@ Modelo 3D interactivo de la maqueta de red hidráulica del proyecto integrador d
 
 - Accesorios con forma real (codos y tees con casquillo, válvula de bola de bronce, YF-S201, transductor de presión), tanque, bomba y edificio con texturas generadas en código.
 - Reflejos de metales con un HDRI de estudio de Poly Haven (CC0), embebido en `lib/hdri_studio.js`.
+- Ingeniería: pérdidas locales con K editables, apertura de válvulas, "Predecir reparto" entre ramales, línea de energía y piezométrica, gráficos (h–Q, potencia, Moody), escenarios A–D y tablero IoT simulado.
 - `og.jpg` es la portada que aparece al compartir el link (WhatsApp, Facebook, etc.).
 
 Para regenerar `index.html` después de editar `src/`: `python3 src/build.py` (usa three.js de `../sismo/lib` y los cargadores de `lib/`). `src/parts/` guarda las piezas ya integradas en `src/app.js` como referencia.
