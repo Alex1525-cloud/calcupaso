@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="es" data-theme="light" data-palette="azul">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Red hidráulica del edificio</title>
+<meta name="description" content="Maqueta 3D interactiva de una red hidráulica de edificio de tres pisos con monitoreo IoT de presión y caudal. Proyecto de Física, Ingeniería Civil, Universidad Nacional de Barranca.">
+<style>{{CSS}}</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-fx"></div>
+  <div class="brand">
+    <div class="kicker">UNAB · Ingeniería Civil · Física</div>
+    <h1>Red hidráulica de un edificio</h1>
+  </div>
+  <div class="top-actions">
+    <div class="theme-wrap">
+      <button id="btnTheme" class="btn ghost" aria-haspopup="true" aria-expanded="false" title="Tema y paleta de colores">
+        <span class="sw-dot"></span><span class="lbl-theme">Tema</span>
+      </button>
+      <div class="theme-pop" id="themePop" hidden>
+        <div class="tp-title">Modo</div>
+        <div class="seg" id="segTheme">
+          <button data-theme="light">Claro</button>
+          <button data-theme="dark">Oscuro</button>
+        </div>
+        <div class="tp-title">Paleta de colores</div>
+        <div class="pal-grid" id="palGrid">
+          <button data-pal="azul"><i></i>Azul marino</button>
+          <button data-pal="oceano"><i></i>Océano</button>
+          <button data-pal="glaciar"><i></i>Glaciar</button>
+          <button data-pal="indigo"><i></i>Índigo</button>
+          <button data-pal="morado"><i></i>Morado</button>
+          <button data-pal="rosado"><i></i>Rosado</button>
+          <button data-pal="carmesi"><i></i>Carmesí</button>
+          <button data-pal="grafito"><i></i>Grafito</button>
+        </div>
+      </div>
+    </div>
+    <button id="btnPresent" class="btn light">Modo presentación</button>
+  </div>
+</header>
+
+<nav class="bar">
+  <div class="seg" id="segDesign" role="tablist" aria-label="Diseño">
+    <button data-design="A" class="on" title="Diseño del informe: ramales horizontales">Diseño A · Informe</button>
+    <button data-design="B" title="Diseño de la imagen de referencia: ramales verticales">Diseño B · Referencia</button>
+  </div>
+  <div class="seg" id="segView" aria-label="Vistas">
+    <button data-view="iso" class="on">3D</button>
+    <button data-view="front">Frontal</button>
+    <button data-view="top">Planta</button>
+    <button data-view="side">Lateral</button>
+    <button data-view="hyd">Hidráulica</button>
+    <button data-view="bld">Edificio</button>
+  </div>
+</nav>
+
+<main class="layout">
+  <section class="stage" id="stage">
+    <div class="dims" id="dims">1,00 × 0,60 × 1,00 m</div>
+    <div class="tour" id="tour">
+      <div class="tour-head">
+        <span class="tour-step" id="tourStep">1 / 8</span>
+        <div class="tour-nav">
+          <button id="tourPrev" class="icon-btn" aria-label="Anterior">‹</button>
+          <button id="tourNext" class="icon-btn" aria-label="Siguiente">›</button>
+        </div>
+      </div>
+      <h3 id="tourTitle">Vista general</h3>
+      <p id="tourText"></p>
+    </div>
+    <div class="legend" id="legend">
+      <span><i class="sw r1"></i>Ramal 1 · <b id="lgR1">1/2"</b></span>
+      <span><i class="sw r2"></i>Ramal 2 · <b id="lgR2">1/2"</b></span>
+      <span><i class="sw al"></i>Alimentación</span>
+      <span><i class="sw rt"></i>Montante y retorno</span>
+    </div>
+    <div class="hint">Arrastra para girar · Rueda para acercar · Doble clic para centrar</div>
+    <div class="pbar" id="pbar">
+      <button data-pv="iso">3D</button><button data-pv="hyd">Hidráulica</button><button data-pv="bld">Edificio</button>
+      <span class="pdiv"></span>
+      <button data-pc="btnPause" id="pPause">Pausar</button><button data-pc="btnRotate" id="pRotate">Giro</button><button data-pc="mode" id="pMode">PVC real</button>
+      <span class="pdiv"></span>
+      <span class="pstat">Q₀ <b id="pQ0">8,00</b> L/min</span><span class="pstat r1">hf R1 <b id="pH1">0,0048</b> m</span><span class="pstat r2">hf R2 <b id="pH2">0,0022</b> m</span>
+    </div>
+    <div class="labels" id="labels"></div>
+    <div class="flowtag" id="flowtag">Circuito de recirculación<br><small>Flujo ilustrativo · consumos cerrados</small></div>
+  </section>
+
+  <aside class="panel" id="panel">
+    <div class="panel-head">
+      <h2>Cálculo teórico</h2>
+      <span class="badge">Darcy–Weisbach</span>
+    </div>
+    <p class="disclaimer">Resultados <b>teóricos</b> con los parámetros de la tabla 6 del informe. La animación es <b>ilustrativa</b> y no simula lecturas de sensores.</p>
+
+    <div class="field-row">
+      <label>Q₁ ramal 1 <small>L/min</small><input type="number" id="inQ1" min="0" max="30" step="0.5" value="4"></label>
+      <label>Q₂ ramal 2 <small>L/min</small><input type="number" id="inQ2" min="0" max="30" step="0.5" value="4"></label>
+    </div>
+    <div class="chips" id="chipsQ">
+      <span>Caudal objetivo:</span>
+      <button data-q="2">2</button><button data-q="4" class="on">4</button><button data-q="6">6</button>
+    </div>
+
+    <div class="field-row">
+      <label>Tubería R1
+        <select id="selD1"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
+      </label>
+      <label>Tubería R2
+        <select id="selD2"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
+      </label>
+    </div>
+    <div class="field-row">
+      <label>L recta R1 <small>m</small><input type="number" id="inL1" min="0" step="0.0005" value="0.5485"></label>
+      <label>L recta R2 <small>m</small><input type="number" id="inL2" min="0" step="0.0005" value="0.2565"></label>
+    </div>
+    <button class="linkbtn" id="btnResetL">Restablecer longitudes del diseño</button>
+
+    <table class="res" id="resTable">
+      <thead><tr><th></th><th class="c-r1">Ramal 1</th><th class="c-r2">Ramal 2</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="notes" id="notes"></div>
+
+    <details class="assume">
+      <summary>Supuestos del cálculo</summary>
+      <ul>
+        <li>Agua a 20 °C: ρ = 998,2 kg/m³, ν = 1,004 × 10⁻⁶ m²/s, g = 9,81 m/s².</li>
+        <li>PVC clase 10: Di = De − 2e (1/2" = 17,4 mm; 3/4" = 22,9 mm; 1" = 29,4 mm). Provisional: medir el tubo comprado.</li>
+        <li>Rugosidad absoluta ε = 0,0015 mm. f por Colebrook en régimen turbulento y 64/Re en laminar.</li>
+        <li>Entre Re = 2300 y 4000 no se asigna un valor único de f (transición).</li>
+        <li>Solo tramos rectos de PVC. Codos, tees, válvulas y caudalímetros añaden pérdidas locales que se tratarán con K.</li>
+        <li>Los caudales son datos ingresados: el modelo no predice todavía el reparto entre ramales.</li>
+      </ul>
+    </details>
+  </aside>
+</main>
+
+<footer class="controls" id="controls">
+  <div class="seg" id="segMode">
+    <button data-mode="glass" class="on">Flujo visible</button>
+    <button data-mode="pvc">PVC real</button>
+  </div>
+  <div class="checks">
+    <label><input type="checkbox" id="ckLabels" checked> Rótulos</label>
+    <label><input type="checkbox" id="ckCotas"> Cotas</label>
+    <label><input type="checkbox" id="ckBuilding" checked> Edificio</label>
+  </div>
+  <div class="btns">
+    <button class="btn" id="btnPause">Pausar flujo</button>
+    <button class="btn" id="btnRotate">Giro automático</button>
+    <button class="btn on" id="btnLight">Luz cálida</button>
+    <button class="btn" id="btnTour">Recorrido guiado</button>
+  </div>
+</footer>
+
+<section class="stats" id="stats">
+  <div class="stat"><span class="k">Caudal total Q₀</span><span class="v" id="stQ0">8,00</span><span class="u">L/min</span></div>
+  <div class="stat"><span class="k">Fricción del ramal 1</span><span class="v r1" id="stH1">0,0048</span><span class="u">m c.a.</span></div>
+  <div class="stat"><span class="k">Fricción del ramal 2</span><span class="v r2" id="stH2">0,0022</span><span class="u">m c.a.</span></div>
+  <div class="stat"><span class="k">Diferencia entre pisos</span><span class="v" id="stHid">2843</span><span class="u">Pa (altura, no fricción)</span></div>
+</section>
+
+<script>{{THREE}}</script>
+<script>{{ORBIT}}</script>
+<script>{{CALC}}</script>
+<script>{{APP}}</script>
+</body>
+</html>
