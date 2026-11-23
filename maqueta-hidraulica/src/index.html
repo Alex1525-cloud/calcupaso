@@ -113,34 +113,91 @@
     </div>
     <p class="disclaimer">Resultados <b>teóricos</b> con los parámetros de la tabla 6 del informe. La animación es <b>ilustrativa</b> y no simula lecturas de sensores.</p>
 
-    <div class="field-row">
-      <label>Q₁ ramal 1 <small>L/min</small><input type="number" id="inQ1" min="0" max="30" step="0.5" value="4"></label>
-      <label>Q₂ ramal 2 <small>L/min</small><input type="number" id="inQ2" min="0" max="30" step="0.5" value="4"></label>
-    </div>
-    <div class="chips" id="chipsQ">
-      <span>Caudal objetivo:</span>
-      <button data-q="2">2</button><button data-q="4" class="on">4</button><button data-q="6">6</button>
+    <div class="ptabs" id="ptabs" role="tablist">
+      <button data-tab="calc" class="on">Cálculo</button><button data-tab="acc">Accesorios</button><button data-tab="ene">Energía</button><button data-tab="gra">Gráficos</button><button data-tab="iot">IoT</button>
     </div>
 
-    <div class="field-row">
-      <label>Tubería R1
-        <select id="selD1"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
-      </label>
-      <label>Tubería R2
-        <select id="selD2"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
-      </label>
-    </div>
-    <div class="field-row">
-      <label>L recta R1 <small>m</small><input type="number" id="inL1" min="0" step="0.0005" value="0.5485"></label>
-      <label>L recta R2 <small>m</small><input type="number" id="inL2" min="0" step="0.0005" value="0.2565"></label>
-    </div>
-    <button class="linkbtn" id="btnResetL">Restablecer longitudes del diseño</button>
+    <section class="ptab on" data-tab="calc">
+      <div class="scen" id="scen">
+        <span>Escenarios:</span>
+        <button data-sc="A" title="Tramos rectos de 1 y 2 m">A · Tramos</button><button data-sc="B" title="Válvula del ramal 1 al 50 % con caudal fijo">B · Válvula</button><button data-sc="C" title="Cerrar a medias el ramal 1 y ver el reparto">C · Reparto</button><button data-sc="D" title="Solo un ramal abierto">D · Un ramal</button><button data-sc="0" title="Volver al diseño">Base</button>
+      </div>
+      <div class="seg wide" id="segFlow">
+        <button data-fm="dato" class="on">Caudales del informe</button><button data-fm="reparto">Predecir reparto</button>
+      </div>
+      <div class="field-row" id="rowQ0" hidden>
+        <label>Q₀ total de la bomba <small>L/min</small><input type="number" id="inQ0" min="0" max="30" step="0.5" value="8"></label>
+        <div class="qsplit" id="qsplit"></div>
+      </div>
+      <div class="field-row" id="rowQ">
+        <label>Q₁ ramal 1 <small>L/min</small><input type="number" id="inQ1" min="0" max="30" step="0.5" value="4"></label>
+        <label>Q₂ ramal 2 <small>L/min</small><input type="number" id="inQ2" min="0" max="30" step="0.5" value="4"></label>
+      </div>
+      <div class="chips" id="chipsQ">
+        <span>Caudal objetivo:</span>
+        <button data-q="2">2</button><button data-q="4" class="on">4</button><button data-q="6">6</button>
+      </div>
+      <div class="field-row">
+        <label>Tubería R1
+          <select id="selD1"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
+        </label>
+        <label>Tubería R2
+          <select id="selD2"><option value="1/2">PVC 1/2"</option><option value="3/4">PVC 3/4"</option><option value="1">PVC 1"</option></select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label>Válvula R1 <small>apertura</small>
+          <select id="selV1"><option value="100">100 %</option><option value="75">75 %</option><option value="50">50 %</option><option value="25">25 %</option><option value="0">Cerrada</option></select>
+        </label>
+        <label>Válvula R2 <small>apertura</small>
+          <select id="selV2"><option value="100">100 %</option><option value="75">75 %</option><option value="50">50 %</option><option value="25">25 %</option><option value="0">Cerrada</option></select>
+        </label>
+      </div>
+      <div class="field-row">
+        <label>L recta R1 <small>m</small><input type="number" id="inL1" min="0" step="0.0005" value="0.5485"></label>
+        <label>L recta R2 <small>m</small><input type="number" id="inL2" min="0" step="0.0005" value="0.2565"></label>
+      </div>
+      <button class="linkbtn" id="btnResetL">Restablecer longitudes del diseño</button>
 
-    <table class="res" id="resTable">
-      <thead><tr><th></th><th class="c-r1">Ramal 1</th><th class="c-r2">Ramal 2</th></tr></thead>
-      <tbody></tbody>
-    </table>
-    <div class="notes" id="notes"></div>
+      <table class="res" id="resTable">
+        <thead><tr><th></th><th class="c-r1">Ramal 1</th><th class="c-r2">Ramal 2</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="notes" id="notes"></div>
+    </section>
+
+    <section class="ptab" data-tab="acc">
+      <p class="sub">Pérdida local h<sub>L</sub> = ΣK · v²/2g. Los K son valores de referencia de tablas usuales (Crane, Mott) y se pueden editar: verifícalos con su fuente o con el ensayo.</p>
+      <table class="res ktab" id="kTable">
+        <thead><tr><th>Accesorio</th><th>K</th><th class="c-r1">R1</th><th class="c-r2">R2</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="bars" id="kBars"></div>
+      <div class="notes" id="kNotes"></div>
+    </section>
+
+    <section class="ptab" data-tab="ene">
+      <div class="seg" id="segVia"><button data-via="r1" class="on">Por el ramal 1</button><button data-via="r2">Por el ramal 2</button></div>
+      <div class="chart" id="eneChart"></div>
+      <div class="lg-mini"><span><i class="ln egl"></i>Línea de energía</span><span><i class="ln hgl"></i>Línea piezométrica</span><span><i class="ln pipe"></i>Eje del tubo</span></div>
+      <table class="res" id="eneTable"><thead><tr><th>Punto</th><th>z (m)</th><th>p (kPa)</th><th>E (m)</th></tr></thead><tbody></tbody></table>
+      <div class="notes" id="eneNotes"></div>
+    </section>
+
+    <section class="ptab" data-tab="gra">
+      <h4 class="ch-title">Pérdida frente al caudal</h4>
+      <div class="chart" id="chHQ"></div>
+      <p class="sub">Línea continua: fricción h<sub>f</sub> (sin valor en la franja de transición). Discontinua: fricción + accesorios.</p>
+      <h4 class="ch-title">Potencia disipada P = ρ g Q h</h4>
+      <div class="pow" id="pow"></div>
+      <h4 class="ch-title">Diagrama de Moody (punto de operación)</h4>
+      <div class="chart" id="chMoody"></div>
+    </section>
+
+    <section class="ptab" data-tab="iot">
+      <p class="disclaimer warnbox">Simulación teórica del tablero del ESP32. <b>No son lecturas reales</b>: sirven para saber qué valores esperar.</p>
+      <div class="iot" id="iot"></div>
+    </section>
 
     <details class="assume">
       <summary>Supuestos del cálculo</summary>
@@ -149,8 +206,9 @@
         <li>PVC clase 10: Di = De − 2e (1/2" = 17,4 mm; 3/4" = 22,9 mm; 1" = 29,4 mm). Provisional: medir el tubo comprado.</li>
         <li>Rugosidad absoluta ε = 0,0015 mm. f por Colebrook en régimen turbulento y 64/Re en laminar.</li>
         <li>Entre Re = 2300 y 4000 no se asigna un valor único de f (transición).</li>
-        <li>Solo tramos rectos de PVC. Codos, tees, válvulas y caudalímetros añaden pérdidas locales que se tratarán con K.</li>
-        <li>Los caudales son datos ingresados: el modelo no predice todavía el reparto entre ramales.</li>
+        <li>Pérdidas locales con K de referencia (editables). La válvula de bola usa K según el ángulo de cierre; el YF-S201 no trae K en su ficha y se estima en 2,2.</li>
+        <li>"Predecir reparto" iguala la pérdida total de ambos ramales entre los mismos nudos. Si un ramal cae en transición, f se interpola entre laminar y turbulento solo como referencia.</li>
+        <li>Línea de energía: el retorno descarga libre en su punto más alto (presión atmosférica). Se desprecian las pérdidas en la succión.</li>
       </ul>
     </details>
   </aside>
