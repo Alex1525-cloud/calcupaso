@@ -22,6 +22,10 @@ def main():
         "{{CSS}}": read(SRC / "style.css"),
         "{{THREE}}": read(lib("three.min.js")),
         "{{ORBIT}}": read(lib("OrbitControls.js")),
+        "{{FFLATE}}": read(lib("fflate.min.js")),
+        "{{EXR}}": read(lib("EXRLoader.js")),
+        "{{RBOX}}": read(lib("RoundedBoxGeometry.js")),
+        "{{HDRI}}": read(lib("hdri_studio.js")),
         "{{CALC}}": read(SRC / "calc.js"),
         "{{APP}}": read(SRC / "app.js"),
     }

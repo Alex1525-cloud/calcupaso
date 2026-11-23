@@ -74,6 +74,18 @@ function makeEnv() {
 }
 scene.environment = makeEnv();
 
+/* Entorno HDRI de estudio (Poly Haven, CC0) embebido; si falla queda el entorno generado. */
+(function () {
+  if (!window.HDRI_STUDIO || !T.EXRLoader) return;
+  try {
+    new T.EXRLoader().setDataType(T.HalfFloatType).load(window.HDRI_STUDIO, function (tex) {
+      var pm = new T.PMREMGenerator(renderer); var env = pm.fromEquirectangular(tex).texture; pm.dispose(); tex.dispose();
+      /* el HDRI de estudio solo en metales (reflejos nítidos); el resto mantiene el entorno cálido */
+      Object.keys(M).forEach(function (k) { var m = M[k]; if (m && m.isMaterial && m.metalness >= 0.5) { m.envMap = env; m.envMapIntensity = 0.9; m.needsUpdate = true; } });
+    });
+  } catch (e) {}
+})();
+
 /* Luces */
 var hemi = new T.HemisphereLight(0xf2f6ff, 0x8a7a66, 0.45); scene.add(hemi);
 var sun = new T.DirectionalLight(0xfff0dc, 1.55);
@@ -85,90 +97,170 @@ sun.target.position.set(0, 0.35, 0); scene.add(sun); scene.add(sun.target);
 var fill = new T.DirectionalLight(0xdbe8ff, 0.35); fill.position.set(2, 1.2, -1.5); scene.add(fill);
 
 /* ---------------------------------------------------------- texturas */
-function canvasTex(w, h, draw, rx, ry) {
-  var c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
-  var t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8;
+function rnd(seed) { var s = seed; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
+function shade(hex, k) { var c = new T.Color(hex); c.offsetHSL(0, 0, k); return '#' + c.getHexString(); }
+function mkCanvas(w, h, draw) { var c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
+function texFrom(c, rx, ry, srgb) {
+  var t = new T.CanvasTexture(c); t.anisotropy = 8;
+  if (srgb !== false) t.encoding = T.sRGBEncoding;
   if (rx) { t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(rx, ry || rx); }
   return t;
 }
-function rnd(seed) { var s = seed; return function () { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; }; }
-var texWood = canvasTex(1024, 512, function (g, w, h) {
-  g.fillStyle = '#c99d6b'; g.fillRect(0, 0, w, h);
-  var r = rnd(7);
-  for (var i = 0; i < 140; i++) {
-    var y = r() * h, a = 0.05 + r() * 0.12;
-    g.strokeStyle = (r() > 0.5 ? 'rgba(120,78,40,' : 'rgba(235,200,150,') + a + ')';
-    g.lineWidth = 0.6 + r() * 2.2; g.beginPath();
-    for (var x = 0; x <= w; x += 16) g.lineTo(x, y + Math.sin(x / (60 + r() * 30) + i) * (2 + r() * 3));
+function canvasTex(w, h, draw, rx, ry) { return texFrom(mkCanvas(w, h, draw), rx, ry); }
+/* Mapa normal a partir de un mapa de alturas en escala de grises. */
+function normalFrom(hc, strength, rx, ry) {
+  var w = hc.width, h = hc.height, src = hc.getContext('2d').getImageData(0, 0, w, h).data;
+  var out = document.createElement('canvas'); out.width = w; out.height = h;
+  var g = out.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+  function H(x, y) { x = (x + w) % w; y = (y + h) % h; return src[(y * w + x) * 4] / 255; }
+  for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
+    var dx = (H(x + 1, y) - H(x - 1, y)) * strength, dy = (H(x, y + 1) - H(x, y - 1)) * strength;
+    var nx = -dx, ny = dy, nz = 1, l = Math.sqrt(nx * nx + ny * ny + nz * nz), i = (y * w + x) * 4;
+    d[i] = (nx / l * 0.5 + 0.5) * 255; d[i + 1] = (ny / l * 0.5 + 0.5) * 255; d[i + 2] = (nz / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  return texFrom(out, rx, ry, false);
+}
+/* Juego de cerámica: color + relieve de fragua */
+function tileSet(o) {
+  var W = o.size || 512, r = rnd(o.seed || 5);
+  var col = mkCanvas(W, W, function () {}), hei = mkCanvas(W, W, function () {});
+  var gc = col.getContext('2d'), gh = hei.getContext('2d');
+  gc.fillStyle = o.grout; gc.fillRect(0, 0, W, W); gh.fillStyle = '#000'; gh.fillRect(0, 0, W, W);
+  var tw = W / o.cols, th = W / o.rows, gp = o.gap * W;
+  for (var j = 0; j < o.rows + 1; j++) for (var i = -1; i < o.cols + 1; i++) {
+    var x = i * tw + (o.stagger && j % 2 ? tw / 2 : 0), y = j * th;
+    var base = shade(o.base, (r() - 0.5) * o.jitter);
+    gc.fillStyle = base; gc.fillRect(x + gp, y + gp, tw - 2 * gp, th - 2 * gp);
+    if (o.veins) {
+      gc.strokeStyle = 'rgba(120,120,120,0.10)'; gc.lineWidth = 1;
+      for (var v = 0; v < 3; v++) { gc.beginPath(); gc.moveTo(x + r() * tw, y + gp); gc.bezierCurveTo(x + r() * tw, y + r() * th, x + r() * tw, y + r() * th, x + r() * tw, y + th - gp); gc.stroke(); }
+    }
+    var lg = gc.createLinearGradient(x, y, x, y + th); lg.addColorStop(0, 'rgba(255,255,255,.12)'); lg.addColorStop(0.5, 'rgba(255,255,255,0)');
+    gc.fillStyle = lg; gc.fillRect(x + gp, y + gp, tw - 2 * gp, th - 2 * gp);
+    // relieve: borde redondeado
+    for (var k = 0; k < 4; k++) { gh.fillStyle = 'rgb(' + (120 + k * 40) + ',' + (120 + k * 40) + ',' + (120 + k * 40) + ')'; gh.fillRect(x + gp + k, y + gp + k, tw - 2 * gp - 2 * k, th - 2 * gp - 2 * k); }
+  }
+  return { map: texFrom(col, o.rx, o.ry), normalMap: normalFrom(hei, o.normal || 3, o.rx, o.ry) };
+}
+var TS_FLOOR = tileSet({ cols: 4, rows: 4, base: '#cfc6b8', grout: '#9b948a', gap: 0.006, jitter: 0.04, veins: true, rx: 2.2, ry: 2.8, seed: 3 });
+var TS_WALL = tileSet({ cols: 4, rows: 8, stagger: true, base: '#f2f4f5', grout: '#c3cad0', gap: 0.008, jitter: 0.025, rx: 2.4, ry: 2.4, seed: 9 });
+var TS_WALL2 = tileSet({ cols: 4, rows: 8, stagger: true, base: '#d9e5ec', grout: '#a9b6c0', gap: 0.008, jitter: 0.03, rx: 2.4, ry: 2.4, seed: 13 });
+/* Tarrajeo / concreto: ruido de baja y alta frecuencia */
+function plaster(base, seed, amp, rx) {
+  var r = rnd(seed), W = 256;
+  var hc = mkCanvas(W, W, function (g) {
+    g.fillStyle = '#808080'; g.fillRect(0, 0, W, W);
+    for (var i = 0; i < 2600; i++) { var v = Math.floor(100 + r() * 60); g.fillStyle = 'rgba(' + v + ',' + v + ',' + v + ',' + (0.25 + r() * 0.35) + ')'; g.beginPath(); g.arc(r() * W, r() * W, 0.6 + r() * 2.4, 0, 7); g.fill(); }
+  });
+  var cc = mkCanvas(W, W, function (g) {
+    g.fillStyle = base; g.fillRect(0, 0, W, W);
+    for (var i = 0; i < 900; i++) { g.fillStyle = 'rgba(0,0,0,' + (r() * 0.035) + ')'; g.beginPath(); g.arc(r() * W, r() * W, 1 + r() * 6, 0, 7); g.fill(); }
+  });
+  return { map: texFrom(cc, rx, rx), normalMap: normalFrom(hc, amp, rx, rx) };
+}
+var TX_PLASTER = plaster('#f4f2ec', 21, 1.4, 3);
+var TX_CONCRETE = plaster('#cfcbc3', 33, 2.2, 4);
+/* Madera contrachapada con veta */
+var WOOD_C = mkCanvas(2048, 1024, function (g, w, h) {
+  var r = rnd(7), gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#caa071'); gr.addColorStop(0.5, '#c29567'); gr.addColorStop(1, '#cda577');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  for (var i = 0; i < 260; i++) {
+    var y = r() * h, a = 0.04 + r() * 0.12, f = 90 + r() * 140, ph = r() * 10;
+    g.strokeStyle = (r() > 0.45 ? 'rgba(115,72,36,' : 'rgba(240,206,160,') + a + ')';
+    g.lineWidth = 0.6 + r() * 2.6; g.beginPath();
+    for (var x = 0; x <= w; x += 12) g.lineTo(x, y + Math.sin(x / f + ph) * (3 + r() * 1.5) + Math.sin(x / (f * 3.1)) * 9);
     g.stroke();
   }
+  for (var k = 0; k < 5; k++) { var kx = r() * w, ky = r() * h; for (var q = 1; q < 9; q++) { g.strokeStyle = 'rgba(100,60,30,' + (0.18 - q * 0.015) + ')'; g.lineWidth = 1.4; g.beginPath(); g.ellipse(kx, ky, q * 5, q * 2.2, 0, 0, 7); g.stroke(); } }
 });
-function tiles(base, grout, n, m, jitter) {
-  return function (g, w, h) {
-    g.fillStyle = grout; g.fillRect(0, 0, w, h);
-    var r = rnd(11), tw = w / n, thh = h / m, gp = Math.max(2, w / 220);
-    for (var i = 0; i < n; i++) for (var j = 0; j < m; j++) {
-      var k = (r() - 0.5) * jitter;
-      g.fillStyle = shade(base, k);
-      g.fillRect(i * tw + gp, j * thh + gp, tw - 2 * gp, thh - 2 * gp);
-      g.fillStyle = 'rgba(255,255,255,.10)'; g.fillRect(i * tw + gp, j * thh + gp, tw - 2 * gp, (thh - 2 * gp) * 0.35);
-    }
-  };
-}
-function shade(hex, k) {
-  var c = new T.Color(hex); c.offsetHSL(0, 0, k); return '#' + c.getHexString();
-}
-var texWallTile = canvasTex(512, 512, tiles('#e9eef2', '#c9d2da', 8, 8, 0.03), 3, 3);
-var texFloorTile = canvasTex(512, 512, tiles('#b9b2a6', '#8f887d', 6, 6, 0.05), 2, 2);
-var texRoof = canvasTex(512, 512, function (g, w, h) {
-  g.fillStyle = '#7d2c1c'; g.fillRect(0, 0, w, h);
-  var rows = 10, cols = 8, r = rnd(3);
-  for (var j = 0; j < rows; j++) for (var i = 0; i <= cols; i++) {
-    var x = i * w / cols + (j % 2 ? w / cols / 2 : 0), y = j * h / rows, tw = w / cols, th = h / rows;
-    var grd = g.createLinearGradient(x - tw / 2, 0, x + tw / 2, 0);
-    var base = shade('#c4512f', (r() - 0.5) * 0.06);
-    grd.addColorStop(0, shade(base, -0.12)); grd.addColorStop(0.5, shade(base, 0.08)); grd.addColorStop(1, shade(base, -0.14));
-    g.fillStyle = grd; g.beginPath();
-    g.moveTo(x - tw / 2 + 2, y); g.lineTo(x + tw / 2 - 2, y); g.lineTo(x + tw / 2 - 2, y + th * 0.82);
-    g.quadraticCurveTo(x, y + th * 1.08, x - tw / 2 + 2, y + th * 0.82); g.closePath(); g.fill();
-  }
-}, 2, 2);
+var texWood = texFrom(WOOD_C);
+/* Texto impreso en el PVC (se repite cada 0,30 m) */
+var texPrint = canvasTex(256, 1024, function (g, w, h) {
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+  g.save(); g.translate(w * 0.22, h * 0.04); g.rotate(Math.PI / 2);
+  g.fillStyle = 'rgba(28,45,80,.62)'; g.font = 'bold 19px Arial';
+  g.fillText('PVC-U  AGUA FRÍA  C-10  NTP 399.002  ▸▸', 0, 0); g.restore();
+  g.save(); g.translate(w * 0.72, h * 0.54); g.rotate(Math.PI / 2);
+  g.fillStyle = 'rgba(28,45,80,.62)'; g.font = 'bold 19px Arial';
+  g.fillText('PVC-U  AGUA FRÍA  C-10  NTP 399.002  ▸▸', 0, 0); g.restore();
+});
+texPrint.wrapS = texPrint.wrapT = T.RepeatWrapping;
 var texMeter = canvasTex(256, 256, function (g, w, h) {
-  g.fillStyle = '#16191d'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#e8edf2'; g.font = 'bold 34px Arial'; g.textAlign = 'center'; g.fillText('YF-S201', w / 2, 92);
-  g.font = '20px Arial'; g.fillText('1-30 L/min', w / 2, 124);
-  g.lineWidth = 9; g.strokeStyle = '#e8edf2'; g.beginPath(); g.moveTo(58, 180); g.lineTo(190, 180); g.stroke();
-  g.beginPath(); g.moveTo(198, 180); g.lineTo(166, 160); g.lineTo(166, 200); g.closePath(); g.fillStyle = '#e8edf2'; g.fill();
+  var gr = g.createRadialGradient(w / 2, h / 2, 10, w / 2, h / 2, w / 2); gr.addColorStop(0, '#22262b'); gr.addColorStop(1, '#111316');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 6; g.beginPath(); g.arc(w / 2, h / 2, w / 2 - 10, 0, 7); g.stroke();
+  g.fillStyle = '#dfe5ea'; g.font = 'bold 30px Arial'; g.textAlign = 'center'; g.fillText('YF-S201', w / 2, 96);
+  g.font = '18px Arial'; g.fillText('DN15  1–30 L/min', w / 2, 124); g.fillText('5–18 V DC', w / 2, 148);
+  g.lineWidth = 8; g.strokeStyle = '#dfe5ea'; g.beginPath(); g.moveTo(70, 190); g.lineTo(178, 190); g.stroke();
+  g.beginPath(); g.moveTo(194, 190); g.lineTo(166, 172); g.lineTo(166, 208); g.closePath(); g.fillStyle = '#dfe5ea'; g.fill();
 });
-var texPcb = canvasTex(256, 128, function (g, w, h) {
-  g.fillStyle = '#141820'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#b8c0c8'; g.fillRect(70, 20, 120, 88);
-  g.fillStyle = '#2b3240'; g.font = 'bold 18px Arial'; g.fillText('ESP32', 98, 62); g.font = '12px Arial'; g.fillText('WROOM-32', 96, 82);
-  g.fillStyle = '#d4af37'; for (var i = 0; i < 19; i++) { g.fillRect(8 + i * 12.8, 4, 6, 6); g.fillRect(8 + i * 12.8, h - 10, 6, 6); }
-  g.fillStyle = '#c0c6cc'; g.fillRect(200, 44, 44, 40);
+var texPcb = canvasTex(512, 256, function (g, w, h) {
+  g.fillStyle = '#10151d'; g.fillRect(0, 0, w, h);
+  g.strokeStyle = 'rgba(80,110,140,.35)'; g.lineWidth = 2; var r = rnd(4);
+  for (var i = 0; i < 40; i++) { g.beginPath(); var x = r() * w, y = r() * h; g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 120, y); g.lineTo(x + (r() - 0.5) * 120, y + (r() - 0.5) * 80); g.stroke(); }
+  g.fillStyle = '#c5ccd3'; g.fillRect(150, 36, 230, 176);
+  g.strokeStyle = '#9aa3ab'; g.strokeRect(150, 36, 230, 176);
+  g.fillStyle = '#39424d'; g.font = 'bold 36px Arial'; g.fillText('ESP32', 205, 118); g.font = '20px Arial'; g.fillText('WROOM-32', 210, 150);
+  g.fillStyle = '#d4af37'; for (var k = 0; k < 19; k++) { g.fillRect(16 + k * 25.6, 8, 12, 12); g.fillRect(16 + k * 25.6, h - 20, 12, 12); }
+  g.strokeStyle = '#d4af37'; g.lineWidth = 4; g.beginPath(); g.moveTo(400, 60); for (var z = 0; z < 6; z++) { g.lineTo(400 + (z % 2) * 70, 60 + z * 24); } g.stroke();
+});
+var texPlate = canvasTex(256, 128, function (g, w, h) {
+  var gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#e9edf1'); gr.addColorStop(1, '#b8c0c8');
+  g.fillStyle = gr; g.fillRect(0, 0, w, h); g.strokeStyle = '#7d8790'; g.lineWidth = 4; g.strokeRect(4, 4, w - 8, h - 8);
+  g.fillStyle = '#1d2a3a'; g.font = 'bold 26px Arial'; g.fillText('BOMBA 12 V DC', 22, 44);
+  g.font = '18px Arial'; g.fillText('Q máx 10 L/min', 22, 74); g.fillText('H máx 5 m  ·  60 W', 22, 100);
+});
+var texPsu = canvasTex(256, 256, function (g, w, h) {
+  g.fillStyle = '#b9c0c7'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#3b434c'; for (var y = 0; y < 9; y++) for (var x = 0; x < 9; x++) { g.beginPath(); g.arc(24 + x * 26, 24 + y * 26, 7, 0, 7); g.fill(); }
+});
+var texScale = canvasTex(128, 512, function (g, w, h) {
+  g.clearRect(0, 0, w, h); g.fillStyle = 'rgba(30,60,110,.85)'; g.strokeStyle = 'rgba(30,60,110,.85)';
+  g.font = 'bold 22px Arial'; g.lineWidth = 3;
+  for (var i = 0; i <= 20; i++) {
+    var y = h - 8 - i * (h - 16) / 20, L = i % 5 === 0 ? 46 : 22;
+    g.beginPath(); g.moveTo(8, y); g.lineTo(8 + L, y); g.stroke();
+    if (i % 5 === 0 && i > 0) g.fillText(i + ' L', 62, y + 8);
+  }
 });
 
 /* ---------------------------------------------------------- materiales */
 function std(c, r, m, o) { var p = { color: c, roughness: r == null ? 0.5 : r, metalness: m || 0 }; for (var k in o) p[k] = o[k]; return new T.MeshStandardMaterial(p); }
+function phys(c, r, m, o) { var p = { color: c, roughness: r == null ? 0.5 : r, metalness: m || 0 }; for (var k in o) p[k] = o[k]; return new T.MeshPhysicalMaterial(p); }
 var M = {
-  pvc: new T.MeshPhysicalMaterial({ color: 0xf4f5f2, roughness: 0.34, metalness: 0, clearcoat: 0.35, clearcoatRoughness: 0.35 }),
-  fit: new T.MeshPhysicalMaterial({ color: 0xe6e8e4, roughness: 0.42, metalness: 0, clearcoat: 0.2, clearcoatRoughness: 0.5 }),
-  brass: std(0xc8a04a, 0.28, 0.95), chrome: std(0xe4e8ec, 0.1, 1), steel: std(0xbac2ca, 0.32, 0.9),
-  black: std(0x1b1f24, 0.55), dark: std(0x31363d, 0.5, 0.3), red: std(0xd42a2a, 0.42), redGrip: std(0xb51f1f, 0.7),
-  pump: std(0x1e4fc9, 0.38, 0.35), pumpDark: std(0x173b93, 0.45, 0.3), navyMetal: std(0x25344a, 0.45, 0.6),
-  wood: std(0xffffff, 0.62, 0, { map: texWood }), board2: std(0x1f3048, 0.6),
-  white: std(0xf7f7f4, 0.78), concrete: std(0xd9d7d1, 0.9), column: std(0xfbfbf9, 0.7),
-  wallTile: std(0xffffff, 0.25, 0, { map: texWallTile }), floorTile: std(0xffffff, 0.35, 0, { map: texFloorTile }),
-  roof: std(0xffffff, 0.6, 0, { map: texRoof }), ceramic: std(0xffffff, 0.12), mirror: std(0xffffff, 0.03, 1),
-  glass: new T.MeshPhysicalMaterial({ color: 0xdff1f7, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.2, depthWrite: false, side: T.DoubleSide }),
-  tankGlass: new T.MeshPhysicalMaterial({ color: 0xf0f8ff, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.16, depthWrite: false, side: T.DoubleSide, clearcoat: 1 }),
-  tankWater: new T.MeshPhysicalMaterial({ color: 0x4aa6dc, roughness: 0.08, metalness: 0, transparent: true, opacity: 0.5, depthWrite: false }),
-  lid: std(0x1d4ed8, 0.4, 0.1), frame: std(0x3a4250, 0.5, 0.4), lamp: new T.MeshBasicMaterial({ color: 0xfff3d6 }),
-  pcbGreen: std(0x0f5132, 0.5), pcb: std(0xffffff, 0.45, 0.2, { map: texPcb }), boxClear: new T.MeshPhysicalMaterial({ color: 0xeef6ff, roughness: 0.08, transparent: true, opacity: 0.22, depthWrite: false }),
-  led: new T.MeshBasicMaterial({ color: 0xff2b2b }), meterTop: new T.MeshStandardMaterial({ map: texMeter, roughness: 0.4 }),
-  tape1: std(0x2563eb, 0.5), tape2: std(0xdc2626, 0.5), cap: std(0xe9ebe7, 0.45)
+  pvc: phys(0xf2f2ee, 0.3, 0, { clearcoat: 0.45, clearcoatRoughness: 0.28, map: texPrint }),
+  fit: phys(0xebebe6, 0.36, 0, { clearcoat: 0.35, clearcoatRoughness: 0.35 }),
+  brass: std(0xd9ab55, 0.24, 1), brassDark: std(0xb98a3c, 0.35, 1), chrome: std(0xffffff, 0.06, 1), steel: std(0xcfd3d7, 0.26, 1),
+  black: std(0x17191c, 0.52), nylon: phys(0x141619, 0.48, 0, { clearcoat: 0.25, clearcoatRoughness: 0.5 }), rubber: std(0x0c0d0f, 0.88),
+  dark: std(0x2d3239, 0.45, 0.4), red: phys(0xd0202a, 0.38, 0, { clearcoat: 0.6, clearcoatRoughness: 0.3 }), redGrip: std(0xb3141d, 0.72),
+  pump: phys(0x1c4fd0, 0.32, 0.35, { clearcoat: 0.9, clearcoatRoughness: 0.18 }), pumpDark: phys(0x163e9e, 0.4, 0.3, { clearcoat: 0.6 }),
+  powder: phys(0x22262c, 0.55, 0.35, { clearcoat: 0.25, clearcoatRoughness: 0.6 }), alu: std(0xd7dbdf, 0.32, 1),
+  wood: std(0xffffff, 0.58, 0, { map: texWood }), board2: phys(0x1f3048, 0.5, 0.1, { clearcoat: 0.4 }),
+  plaster: std(0xffffff, 0.85, 0, { map: TX_PLASTER.map, normalMap: TX_PLASTER.normalMap, normalScale: new T.Vector2(0.6, 0.6) }),
+  concrete: std(0xffffff, 0.9, 0, { map: TX_CONCRETE.map, normalMap: TX_CONCRETE.normalMap }),
+  white: std(0xf7f6f2, 0.7), column: std(0xfbfbf9, 0.65),
+  wallTile: phys(0xffffff, 0.18, 0, { map: TS_WALL.map, normalMap: TS_WALL.normalMap, normalScale: new T.Vector2(0.9, 0.9), clearcoat: 0.6, clearcoatRoughness: 0.15 }),
+  wallTile2: phys(0xffffff, 0.2, 0, { map: TS_WALL2.map, normalMap: TS_WALL2.normalMap, normalScale: new T.Vector2(0.9, 0.9), clearcoat: 0.5, clearcoatRoughness: 0.2 }),
+  floorTile: phys(0xffffff, 0.24, 0, { map: TS_FLOOR.map, normalMap: TS_FLOOR.normalMap, clearcoat: 0.5, clearcoatRoughness: 0.2 }),
+  roofTile: phys(0xb9502c, 0.62, 0, { clearcoat: 0.15 }), roofTile2: phys(0xa8462a, 0.66, 0, { clearcoat: 0.1 }), roofBase: std(0x6e3a26, 0.8),
+  fascia: std(0x8a5a3a, 0.55, 0, { map: texWood }),
+  ceramic: phys(0xfdfdfb, 0.08, 0, { clearcoat: 1, clearcoatRoughness: 0.05 }), mirror: std(0xffffff, 0.02, 1),
+  marble: phys(0xe9e6df, 0.15, 0, { clearcoat: 0.8 }), towel: std(0x5c7fa8, 0.95), mat: std(0x8aa3b8, 0.95),
+  glass: phys(0xe6f4f8, 0.03, 0, { transparent: true, opacity: 0.18, depthWrite: false, side: T.DoubleSide, clearcoat: 1 }),
+  tankGlass: phys(0xf4faff, 0.04, 0, { transparent: true, opacity: 0.2, depthWrite: false, side: T.DoubleSide, clearcoat: 1, clearcoatRoughness: 0.03 }),
+  tankWater: phys(0x2f8fd0, 0.05, 0, { transparent: true, opacity: 0.42, depthWrite: false, clearcoat: 1 }),
+  waterTop: phys(0x5fb8ea, 0.02, 0, { transparent: true, opacity: 0.55, depthWrite: false, clearcoat: 1 }),
+  lid: phys(0x1d4ed8, 0.38, 0, { clearcoat: 0.6 }), frame: std(0x3a4250, 0.4, 0.8), lamp: new T.MeshBasicMaterial({ color: 0xfff3d6 }),
+  pcbGreen: std(0x12161d, 0.5), pcb: std(0xffffff, 0.4, 0.2, { map: texPcb }),
+  boxClear: phys(0xeef6ff, 0.05, 0, { transparent: true, opacity: 0.2, depthWrite: false, clearcoat: 1 }),
+  led: new T.MeshBasicMaterial({ color: 0xff2b2b }), meterTop: std(0xffffff, 0.45, 0, { map: texMeter }),
+  plate: std(0xffffff, 0.3, 0.6, { map: texPlate }), psu: std(0xffffff, 0.35, 0.8, { map: texPsu }),
+  scale: new T.MeshBasicMaterial({ map: texScale, transparent: true, depthWrite: false }),
+  tape1: std(0x2563eb, 0.45), tape2: std(0xdc2626, 0.45), cap: phys(0xe9ebe7, 0.4, 0, { clearcoat: 0.3 }),
+  wire: {}
 };
+
 var CIRC = { r1: 0x2563eb, r2: 0xdc2626, al: 0x38bdf8, rt: 0x8aa0b8 };
 var WATER = {}, DOTMAT = {};
 Object.keys(CIRC).forEach(function (k) {
@@ -194,6 +286,46 @@ function frame(dir, up) {
   return q;
 }
 
+/* Geometrías de detalle: torneado, prisma hexagonal biselado, caja redondeada */
+var GEO_CACHE = {};
+function cached(key, make) { return GEO_CACHE[key] || (GEO_CACHE[key] = make()); }
+function lathe(pts, seg) { return new T.LatheGeometry(pts.map(function (p) { return new T.Vector2(p[0], p[1]); }), seg || 40); }
+function latheMesh(pts, mat, seg) { return mesh(lathe(pts, seg), mat); }
+/* prisma hexagonal a lo largo de Y, centrado; af = entre caras */
+function hexGeo(af, len, bev) {
+  return cached('hex' + af.toFixed(5) + '_' + len.toFixed(5), function () {
+    var R = af / Math.sqrt(3), s = new T.Shape();
+    for (var i = 0; i < 6; i++) { var a = Math.PI / 6 + i * Math.PI / 3, x = Math.cos(a) * R, y = Math.sin(a) * R; if (i) s.lineTo(x, y); else s.moveTo(x, y); }
+    s.closePath();
+    var b = bev == null ? Math.min(af * 0.08, len * 0.2) : bev;
+    var g = new T.ExtrudeGeometry(s, { depth: Math.max(1e-4, len - 2 * b), bevelEnabled: true, bevelThickness: b, bevelSize: b * 0.8, bevelSegments: 2, curveSegments: 1 });
+    g.translate(0, 0, -(len - 2 * b) / 2); g.rotateX(-Math.PI / 2); g.computeVertexNormals();
+    return g;
+  });
+}
+function hexMesh(af, len, mat) { return mesh(hexGeo(af, len), mat); }
+function rbox(w, h, d, r, mat, x, y, z, parent) {
+  var g = cached('rb' + [w, h, d, r].map(function (v) { return v.toFixed(5); }).join('_'), function () {
+    return T.RoundedBoxGeometry ? new T.RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2, h / 2, d / 2)) : new T.BoxGeometry(w, h, d);
+  });
+  var m = mesh(g, mat); m.position.set(x || 0, y || 0, z || 0); if (parent) parent.add(m); return m;
+}
+/* coloca un objeto con su eje Y local en la dirección dir */
+function alignY(o, dir, pos) { o.quaternion.setFromUnitVectors(UP, dir.clone().normalize()); if (pos) o.position.copy(pos); return o; }
+/* casquillo de accesorio PVC: boca biselada en y=0, cuerpo hacia +y */
+function hubGeo(r, L) {
+  return cached('hub' + r.toFixed(5) + '_' + L.toFixed(5), function () {
+    return lathe([[r * 1.005, 0], [r * 1.12, 0.0006], [r * 1.19, 0.0022], [r * 1.2, 0.004], [r * 1.2, L - 0.002], [r * 1.215, L - 0.0012], [r * 1.215, L]], 40);
+  });
+}
+function addThreads(parent, r, y0, y1, mat) {
+  var n = Math.max(3, Math.round((y1 - y0) / 0.0016));
+  for (var i = 0; i <= n; i++) {
+    var t = mesh(cached('thr' + r.toFixed(5), function () { return new T.TorusGeometry(r, 0.00045, 6, 28); }), mat, false, false);
+    t.rotation.x = Math.PI / 2; t.position.y = y0 + (y1 - y0) * i / n; parent.add(t);
+  }
+}
+
 /* ------------------------------------------------------------ escena fija */
 var world = new T.Group(); scene.add(world);
 var bldGroup = new T.Group(); world.add(bldGroup);
@@ -205,176 +337,260 @@ var floorLights = [];
 var shadowCatcher = new T.Mesh(new T.PlaneGeometry(6, 6), new T.ShadowMaterial({ opacity: 0.18 }));
 shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.position.y = -G.board.t - 0.0005; shadowCatcher.receiveShadow = true; world.add(shadowCatcher);
 
-// tablero de madera con canto azul marino
+// tablero de contrachapado con canto azul marino
 (function () {
   var b = G.board;
-  var top = box(b.w, b.t, b.d, M.wood, 0, -b.t / 2, 0, world);
-  top.castShadow = true;
-  box(b.w + 0.004, 0.012, 0.004, M.board2, 0, -b.t / 2, b.d / 2 + 0.002, world);
+  var top = rbox(b.w, b.t, b.d, 0.004, M.wood, 0, -b.t / 2, 0, world);
+  var edge = rbox(b.w + 0.004, 0.012, 0.006, 0.002, M.board2, 0, -b.t / 2, b.d / 2 + 0.001, world);
+  // placa con el nombre en el canto
+  var c = mkCanvas(1024, 64, function (g, w, h) { g.fillStyle = '#1f3048'; g.fillRect(0, 0, w, h); g.fillStyle = '#e8eef5'; g.font = 'bold 34px Arial'; g.textAlign = 'center'; g.fillText('RED HIDRÁULICA · PVC 1/2"  ·  UNAB INGENIERÍA CIVIL', w / 2, 44); });
+  var pl = new T.Mesh(new T.PlaneGeometry(0.42, 0.026), std(0xffffff, 0.4, 0.3, { map: texFrom(c) })); pl.position.set(0.2, -b.t / 2, b.d / 2 + 0.0045); world.add(pl);
 })();
 
-// soporte del depósito
+// soporte metálico del depósito (tubo cuadrado con pintura en polvo)
 (function () {
-  var t = G.tank, s = new T.Group(), h = t.y0 - 0.015, w = 0.32;
-  for (var i = -1; i <= 1; i += 2) for (var j = -1; j <= 1; j += 2) box(0.018, h, 0.018, M.navyMetal, t.x + i * (w / 2 - 0.009), h / 2, t.z + j * (w / 2 - 0.009), s);
-  box(w, 0.015, w, M.navyMetal, t.x, h + 0.0075, t.z, s);
-  for (var k = -1; k <= 1; k += 2) {
-    box(w, 0.012, 0.012, M.navyMetal, t.x, 0.17, t.z + k * (w / 2 - 0.009), s);
-    box(0.012, 0.012, w, M.navyMetal, t.x + k * (w / 2 - 0.009), 0.17, t.z, s);
+  var t = G.tank, s = new T.Group(), h = t.y0 - 0.015, w = 0.32, tb = 0.02;
+  for (var i = -1; i <= 1; i += 2) for (var j = -1; j <= 1; j += 2) {
+    var x = t.x + i * (w / 2 - tb / 2), z = t.z + j * (w / 2 - tb / 2);
+    rbox(tb, h - 0.008, tb, 0.0025, M.powder, x, (h - 0.008) / 2 + 0.008, z, s);
+    var foot = mesh(new T.CylinderGeometry(0.012, 0.013, 0.008, 20), M.rubber); foot.position.set(x, 0.004, z); s.add(foot);
   }
+  rbox(w, 0.012, w, 0.002, M.powder, t.x, h + 0.006, t.z, s);
+  for (var k = -1; k <= 1; k += 2) {
+    rbox(w - 0.03, 0.016, 0.016, 0.002, M.powder, t.x, 0.17, t.z + k * (w / 2 - 0.01), s);
+    rbox(0.016, 0.016, w - 0.03, 0.002, M.powder, t.x + k * (w / 2 - 0.01), 0.17, t.z, s);
+  }
+  // tornillos de las esquinas
+  for (i = -1; i <= 1; i += 2) for (j = -1; j <= 1; j += 2) { var bl = hexMesh(0.008, 0.004, M.steel); bl.position.set(t.x + i * (w / 2 - 0.01), h + 0.014, t.z + j * (w / 2 - 0.01)); s.add(bl); }
   world.add(s);
 })();
 
-// depósito 20 L transparente
+// depósito de 20 L translúcido con tapa, asa y escala
 var tankWaterTop;
 (function () {
-  var t = G.tank, g = new T.Group();
-  var shell = new T.Mesh(new T.CylinderGeometry(t.r, t.r, t.h, 64, 1, true), M.tankGlass); shell.position.set(t.x, t.y0 + t.h / 2, t.z); g.add(shell);
-  var bottom = mesh(new T.CylinderGeometry(t.r + 0.004, t.r + 0.004, 0.012, 64), M.lid); bottom.position.set(t.x, t.y0 + 0.006, t.z); g.add(bottom);
+  var t = G.tank, g = new T.Group(), R = t.r, Hh = t.h;
+  var shell = new T.Mesh(lathe([[0, 0.001], [R - 0.016, 0.001], [R - 0.006, 0.004], [R - 0.002, 0.012], [R - 0.001, 0.03], [R + 0.003, Hh - 0.035], [R + 0.003, Hh - 0.016], [R + 0.008, Hh - 0.012], [R + 0.009, Hh - 0.004], [R + 0.006, Hh]], 72), M.tankGlass);
+  shell.position.set(t.x, t.y0, t.z); shell.renderOrder = 2; g.add(shell);
+  [0.07, 0.16, 0.25].forEach(function (y) { var rib = new T.Mesh(new T.TorusGeometry(R - 0.0005 + y * 0.012, 0.0022, 8, 72), M.tankGlass); rib.rotation.x = Math.PI / 2; rib.position.set(t.x, t.y0 + y, t.z); g.add(rib); });
   var wh = 0.255;
-  var water = new T.Mesh(new T.CylinderGeometry(t.r - 0.004, t.r - 0.004, wh, 64), M.tankWater); water.position.set(t.x, t.y0 + 0.012 + wh / 2, t.z); g.add(water);
-  tankWaterTop = water;
-  var lid = mesh(new T.CylinderGeometry(t.r + 0.006, t.r + 0.006, 0.022, 64, 1, true), M.lid); lid.position.set(t.x, t.y0 + t.h, t.z); g.add(lid);
-  var ring = mesh(new T.TorusGeometry(t.r + 0.004, 0.004, 10, 64), M.lid); ring.rotation.x = Math.PI / 2; ring.position.set(t.x, t.y0 + t.h + 0.011, t.z); g.add(ring);
-  // asa
-  var asa = mesh(new T.TorusGeometry(0.07, 0.006, 10, 40, Math.PI), M.lid); asa.position.set(t.x, t.y0 + t.h + 0.011, t.z); g.add(asa);
-  // marcas de nivel
-  for (var i = 1; i <= 4; i++) {
-    var mk = new T.Mesh(new T.BoxGeometry(0.03, 0.0015, 0.001), M.dark); mk.position.set(t.x, t.y0 + 0.012 + i * 0.06, t.z + t.r + 0.0008); g.add(mk);
-  }
+  var water = new T.Mesh(lathe([[0, 0.004], [R - 0.018, 0.004], [R - 0.008, 0.007], [R - 0.004, 0.015], [R - 0.003, 0.03], [R - 0.0005, wh - 0.002], [R - 0.0045, wh], [0, wh]], 72), M.tankWater);
+  water.position.set(t.x, t.y0, t.z); water.renderOrder = 1; g.add(water); tankWaterTop = water;
+  var surf = new T.Mesh(new T.CircleGeometry(R - 0.004, 72), M.waterTop); surf.rotation.x = -Math.PI / 2; surf.position.set(t.x, t.y0 + wh - 0.0005, t.z); g.add(surf);
+  // escala graduada impresa
+  var sc = new T.Mesh(new T.CylinderGeometry(R + 0.0035, R + 0.0035, Hh - 0.06, 24, 1, true, -0.28, 0.56), M.scale);
+  sc.position.set(t.x, t.y0 + 0.012 + (Hh - 0.06) / 2, t.z); sc.renderOrder = 3; g.add(sc);
+  // tapa azul con estrías y tapón
+  var lid = latheMesh([[0, 0.024], [R - 0.03, 0.024], [R - 0.02, 0.026], [R + 0.004, 0.024], [R + 0.011, 0.02], [R + 0.012, 0.004], [R + 0.009, -0.004], [R + 0.006, -0.004]], M.lid, 72);
+  lid.position.set(t.x, t.y0 + Hh, t.z); g.add(lid);
+  var ribs = new T.InstancedMesh(new T.BoxGeometry(0.0025, 0.014, 0.003), M.lid, 64), mm = new T.Matrix4(), q = new T.Quaternion();
+  for (var i = 0; i < 64; i++) { var a = i / 64 * Math.PI * 2; q.setFromAxisAngle(UP, -a); mm.compose(V(t.x + Math.cos(a) * (R + 0.0125), t.y0 + Hh + 0.011, t.z + Math.sin(a) * (R + 0.0125)), q, V(1, 1, 1)); ribs.setMatrixAt(i, mm); }
+  ribs.castShadow = true; g.add(ribs);
+  var cap = latheMesh([[0, 0.042], [0.022, 0.042], [0.025, 0.039], [0.026, 0.024]], M.lid, 48); cap.position.set(t.x, t.y0 + Hh, t.z); g.add(cap);
+  var grom = mesh(new T.TorusGeometry(0.014, 0.003, 10, 32), M.rubber); grom.rotation.x = Math.PI / 2; grom.position.set(t.x, t.y0 + Hh + 0.043, t.z); g.add(grom);
+  // asa plegada hacia atrás
+  [-1, 1].forEach(function (s) { var lug = rbox(0.014, 0.02, 0.01, 0.003, M.lid, t.x + s * (R + 0.011), t.y0 + Hh - 0.008, t.z, g); });
+  var hp = [], k;
+  for (k = 0; k <= 24; k++) { var th = k / 24 * Math.PI; hp.push(V(Math.cos(th) * (R + 0.013), Math.sin(th) * 0.095, 0)); }
+  var handle = mesh(new T.TubeGeometry(new T.CatmullRomCurve3(hp), 60, 0.0042, 10, false), M.lid);
+  var hg = new T.Group(); hg.add(handle);
+  var grip = mesh(new T.CylinderGeometry(0.009, 0.009, 0.07, 20), M.black); grip.rotation.z = Math.PI / 2; grip.position.set(0, 0.095, 0); hg.add(grip);
+  hg.position.set(t.x, t.y0 + Hh - 0.008, t.z); hg.rotation.x = -1.25; g.add(hg);
+  // pasamuro de salida en el fondo
+  var bk = new T.Group(); hexMesh(0.032, 0.008, M.fit).position.y = 0; bk.add(hexMesh(0.032, 0.008, M.fit));
+  var bk2 = hexMesh(0.032, 0.006, M.fit); bk2.position.y = 0.012; bk.add(bk2);
+  bk.position.set(-0.46, t.y0 - 0.002, t.z); g.add(bk);
   world.add(g);
 })();
 
-// bomba 12 V
+// bomba centrífuga de 12 V
 (function () {
   var p = G.pump, g = new T.Group();
-  box(0.13, 0.008, 0.075, M.black, p.x + 0.005, 0.004, p.z, g);
-  for (var i = -1; i <= 1; i += 2) box(0.012, 0.012, 0.06, M.dark, p.x + i * 0.04, 0.014, p.z, g);
-  var motor = cylAlong(0.031, 0.08, M.pump, V(p.x + 0.025, p.y, p.z), V(1, 0, 0), 40, g);
-  for (var k = 0; k < 7; k++) cylAlong(0.0328, 0.004, M.pumpDark, V(p.x + 0.0 + k * 0.01, p.y, p.z), V(1, 0, 0), 40, g);
-  cylAlong(0.024, 0.012, M.black, V(p.x + 0.071, p.y, p.z), V(1, 0, 0), 32, g);
-  cylAlong(0.006, 0.01, M.steel, V(p.x + 0.081, p.y, p.z), V(1, 0, 0), 16, g);
-  // voluta
-  cylAlong(0.036, 0.03, M.pump, V(p.x - 0.03, p.y, p.z), V(1, 0, 0), 40, g);
-  cylAlong(0.03, 0.006, M.pumpDark, V(p.x - 0.048, p.y, p.z), V(1, 0, 0), 40, g);
-  // bocas
-  cylAlong(0.0125, 0.026, M.pump, V(p.x - 0.058, p.y, p.z), V(1, 0, 0), 24, g);
-  cylAlong(0.0125, 0.03, M.pump, V(p.x - 0.045, p.y + 0.036, p.z), UP, 24, g);
-  // bornes
-  box(0.02, 0.012, 0.016, M.black, p.x + 0.03, p.y + 0.034, p.z, g);
+  // soporte en L con pernos
+  rbox(0.13, 0.005, 0.08, 0.0015, M.powder, p.x + 0.008, 0.0025, p.z, g);
+  rbox(0.005, 0.03, 0.06, 0.0015, M.powder, p.x - 0.012, 0.017, p.z, g);
+  [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { var b = hexMesh(0.007, 0.004, M.steel); b.position.set(p.x + 0.008 + c[0] * 0.055, 0.007, p.z + c[1] * 0.032); g.add(b); });
+  // motor con aletas
+  var motor = new T.Group();
+  motor.add(latheMesh([[0, -0.042], [0.024, -0.042], [0.029, -0.038], [0.031, -0.032], [0.031, 0.034], [0.029, 0.038], [0.02, 0.041], [0, 0.041]], M.pump, 48));
+  var fins = new T.InstancedMesh(new T.BoxGeometry(0.0018, 0.06, 0.005), M.pumpDark, 18), mm = new T.Matrix4(), q = new T.Quaternion();
+  for (var i = 0; i < 18; i++) { var a = i / 18 * Math.PI * 2; q.setFromAxisAngle(UP, -a); mm.compose(V(Math.cos(a) * 0.0335, 0, Math.sin(a) * 0.0335), q, V(1, 1, 1)); fins.setMatrixAt(i, mm); }
+  fins.castShadow = true; motor.add(fins);
+  // tapa trasera con rejilla del ventilador
+  var cap = latheMesh([[0, 0.058], [0.012, 0.058], [0.026, 0.054], [0.03, 0.046], [0.03, 0.04]], M.black, 40); motor.add(cap);
+  for (i = 1; i <= 3; i++) { var ring = mesh(new T.TorusGeometry(0.007 * i, 0.0012, 6, 32), M.dark); ring.rotation.x = Math.PI / 2; ring.position.y = 0.0585; motor.add(ring); }
+  var shaft = mesh(new T.CylinderGeometry(0.004, 0.004, 0.008, 16), M.steel); shaft.position.y = -0.046; motor.add(shaft);
+  motor.rotation.z = -Math.PI / 2; motor.position.set(p.x + 0.03, p.y, p.z); g.add(motor);
+  // caja de bornes con prensaestopa y placa
+  rbox(0.03, 0.016, 0.026, 0.003, M.pump, p.x + 0.03, p.y + 0.038, p.z, g);
+  rbox(0.032, 0.003, 0.028, 0.0012, M.pumpDark, p.x + 0.03, p.y + 0.0475, p.z, g);
+  [[-1, -1], [1, 1]].forEach(function (c) { var sc = mesh(new T.CylinderGeometry(0.0018, 0.0018, 0.0012, 12), M.steel); sc.position.set(p.x + 0.03 + c[0] * 0.011, p.y + 0.0495, p.z + c[1] * 0.009); g.add(sc); });
+  var gland = mesh(new T.CylinderGeometry(0.0045, 0.0055, 0.008, 16), M.black); gland.rotation.z = Math.PI / 2; gland.position.set(p.x + 0.049, p.y + 0.038, p.z); g.add(gland);
+  var pl = new T.Mesh(new T.PlaneGeometry(0.04, 0.02), M.plate); pl.position.set(p.x + 0.035, p.y + 0.004, p.z + 0.0345); g.add(pl);
+  // voluta de la bomba con brida y pernos
+  var head = new T.Group();
+  head.add(latheMesh([[0, -0.016], [0.02, -0.016], [0.031, -0.013], [0.036, -0.006], [0.037, 0.006], [0.039, 0.008], [0.039, 0.014], [0.03, 0.016], [0, 0.016]], M.pump, 48));
+  head.add(latheMesh([[0, -0.022], [0.012, -0.022], [0.026, -0.018], [0.03, -0.016]], M.pumpDark, 40));
+  for (i = 0; i < 6; i++) { var a2 = i / 6 * Math.PI * 2, bolt = hexMesh(0.006, 0.004, M.steel); bolt.position.set(Math.cos(a2) * 0.034, 0.017, Math.sin(a2) * 0.034); head.add(bolt); }
+  head.rotation.z = Math.PI / 2; head.position.set(p.x - 0.03, p.y, p.z); g.add(head);
+  // boquilla de succión (axial) y de descarga (radial) con rosca
+  var suc = new T.Group(); suc.add(latheMesh([[0.016, 0], [0.016, 0.004], [0.0125, 0.006], [0.0125, 0.024], [0.0105, 0.026]], M.pump, 32));
+  addThreads(suc, 0.0127, 0.012, 0.024, M.pumpDark);
+  alignY(suc, V(-1, 0, 0), V(p.x - 0.047, p.y, p.z)); g.add(suc);
+  var dis = new T.Group(); dis.add(latheMesh([[0.016, 0], [0.016, 0.004], [0.0125, 0.007], [0.0125, 0.012], [0.0105, 0.014]], M.pump, 32));
+  addThreads(dis, 0.0127, 0.007, 0.012, M.pumpDark);
+  alignY(dis, UP, V(p.x - 0.045, p.y + 0.036, p.z)); g.add(dis);
+  g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   world.add(g);
-  // fuente 12 V
+  // cable de la bomba a la fuente
+  var cv = new T.CatmullRomCurve3([V(p.x + 0.053, p.y + 0.038, p.z), V(p.x + 0.075, p.y + 0.03, p.z - 0.02), V(-0.24, 0.006, -0.17), V(-0.215, 0.012, -0.195)], false, 'centripetal');
+  world.add(mesh(new T.TubeGeometry(cv, 40, 0.0022, 8, false), M.black));
+  // fuente de 12 V
   var f = new T.Group();
-  box(0.07, 0.03, 0.045, M.black, -0.20, 0.015, -0.21, f);
-  var led = new T.Mesh(new T.SphereGeometry(0.0025, 10, 10), new T.MeshBasicMaterial({ color: 0x22c55e })); led.position.set(-0.175, 0.024, -0.187); f.add(led);
+  rbox(0.075, 0.032, 0.05, 0.003, M.alu, -0.2, 0.016, -0.21, f);
+  var top = new T.Mesh(new T.PlaneGeometry(0.06, 0.04), M.psu); top.rotation.x = -Math.PI / 2; top.position.set(-0.2, 0.0322, -0.21); f.add(top);
+  rbox(0.012, 0.012, 0.05, 0.002, M.black, -0.235, 0.012, -0.21, f);
+  var led = new T.Mesh(new T.SphereGeometry(0.0022, 10, 10), new T.MeshBasicMaterial({ color: 0x22c55e })); led.position.set(-0.17, 0.026, -0.1848); f.add(led);
+  f.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
   world.add(f);
 })();
 
-// ESP32 en caja transparente
+// ESP32 en caja transparente atornillada
 var espLed, ESP_PIN = V(-0.08, 0.03, 0.04);
 (function () {
   var g = new T.Group(), x = -0.08, z = 0.04;
-  box(0.11, 0.004, 0.075, M.black, x, 0.002, z, g);
-  var b = new T.Mesh(new T.BoxGeometry(0.11, 0.032, 0.075), M.boxClear); b.position.set(x, 0.02, z); g.add(b);
-  box(0.09, 0.004, 0.055, M.pcbGreen, x, 0.008, z, g);
-  var pcb = mesh(new T.BoxGeometry(0.056, 0.003, 0.028), [M.black, M.black, M.pcb, M.black, M.black, M.black]); pcb.position.set(x, 0.0125, z); g.add(pcb);
-  for (var i = 0; i < 12; i++) { box(0.002, 0.008, 0.002, M.brass, x - 0.04 + i * 0.0073, 0.014, z - 0.022, g); box(0.002, 0.008, 0.002, M.brass, x - 0.04 + i * 0.0073, 0.014, z + 0.022, g); }
-  espLed = new T.Mesh(new T.SphereGeometry(0.0022, 10, 10), M.led); espLed.position.set(x + 0.032, 0.015, z + 0.01); g.add(espLed);
+  rbox(0.11, 0.006, 0.075, 0.002, M.powder, x, 0.003, z, g);
+  var b = new T.Mesh(new T.RoundedBoxGeometry ? new T.RoundedBoxGeometry(0.11, 0.032, 0.075, 3, 0.004) : new T.BoxGeometry(0.11, 0.032, 0.075), M.boxClear); b.position.set(x, 0.022, z); b.renderOrder = 2; g.add(b);
+  [[-1, -1], [-1, 1], [1, -1], [1, 1]].forEach(function (c) { var s = mesh(new T.CylinderGeometry(0.0022, 0.0022, 0.002, 12), M.steel); s.position.set(x + c[0] * 0.05, 0.0385, z + c[1] * 0.032); g.add(s); });
+  var pcb = mesh(new T.BoxGeometry(0.056, 0.0016, 0.028), [M.pcbGreen, M.pcbGreen, M.pcb, M.pcbGreen, M.pcbGreen, M.pcbGreen]); pcb.position.set(x - 0.005, 0.016, z); g.add(pcb);
+  rbox(0.018, 0.003, 0.016, 0.0008, M.steel, x - 0.006, 0.0185, z, g);
+  rbox(0.008, 0.003, 0.007, 0.0008, M.steel, x - 0.035, 0.0185, z, g);
+  for (var i = 0; i < 15; i++) { var a = rbox(0.0024, 0.009, 0.0024, 0.0004, M.black, x - 0.04 + i * 0.0049, 0.0115, z - 0.0125, g); var b2 = rbox(0.0024, 0.009, 0.0024, 0.0004, M.black, x - 0.04 + i * 0.0049, 0.0115, z + 0.0125, g); }
+  // regleta de bornes para sensores
+  rbox(0.03, 0.008, 0.01, 0.001, std(0x1b7f3a, 0.5), x + 0.03, 0.012, z + 0.022, g);
+  espLed = new T.Mesh(new T.SphereGeometry(0.0018, 10, 10), M.led); espLed.position.set(x + 0.02, 0.018, z + 0.006); g.add(espLed);
   world.add(g);
 })();
 
 /* -------------------------------------------------------------- edificio */
 function buildBuilding() {
   var b = G.bld, g = bldGroup, cx = (b.x0 + b.x1) / 2, cz = (b.z0 + b.z1) / 2, W = b.x1 - b.x0, D = b.z1 - b.z0;
-  // zócalo
-  box(W + 0.01, G.floors[0], D + 0.01, M.concrete, cx, G.floors[0] / 2, cz, g);
-  // losas
-  [G.floors[1], G.floors[2], G.ceil].forEach(function (y) { box(W + 0.012, 0.014, D + 0.012, M.white, cx, y - 0.007, cz, g); });
-  // pisos con cerámica
-  G.floors.forEach(function (y) {
-    var f = mesh(new T.PlaneGeometry(W - 0.01, D - 0.01), M.floorTile, false, true); f.rotation.x = -Math.PI / 2; f.position.set(cx, y + 0.0007, cz); g.add(f);
+  // zócalo de concreto y vereda
+  rbox(W + 0.012, G.floors[0], D + 0.012, 0.002, M.concrete, cx, G.floors[0] / 2, cz, g);
+  rbox(W + 0.02, 0.006, D + 0.02, 0.002, M.concrete, cx, 0.003, cz, g);
+  // losas con cornisa
+  [G.floors[1], G.floors[2], G.ceil].forEach(function (y) {
+    rbox(W + 0.014, 0.014, D + 0.014, 0.0015, M.plaster, cx, y - 0.007, cz, g);
+    rbox(W + 0.02, 0.004, D + 0.02, 0.0012, M.white, cx, y - 0.0155, cz, g);
   });
+  // pisos de porcelanato
+  G.floors.forEach(function (y) { var f = mesh(new T.PlaneGeometry(W - 0.012, D - 0.012), M.floorTile, false, true); f.rotation.x = -Math.PI / 2; f.position.set(cx, y + 0.0008, cz); g.add(f); });
   // columnas
   [[b.x0, b.z0], [b.x1, b.z0], [b.x0, b.z1], [b.x1, b.z1]].forEach(function (p) {
-    box(0.022, G.ceil - G.floors[0], 0.022, M.column, p[0] + (p[0] < cx ? 0.011 : -0.011), (G.ceil + G.floors[0]) / 2, p[1] + (p[1] < cz ? 0.011 : -0.011), g);
+    rbox(0.022, G.ceil - G.floors[0], 0.022, 0.002, M.plaster, p[0] + (p[0] < cx ? 0.011 : -0.011), (G.ceil + G.floors[0]) / 2, p[1] + (p[1] < cz ? 0.011 : -0.011), g);
   });
-  // muro posterior con mayólica
-  box(W, G.ceil - G.floors[0], 0.008, M.wallTile, cx, (G.ceil + G.floors[0]) / 2, b.z0 + 0.004, g);
+  // muro posterior: mayólica por dentro, tarrajeo por fuera
+  var bw = mesh(new T.BoxGeometry(W, G.ceil - G.floors[0], 0.008), [M.plaster, M.plaster, M.plaster, M.plaster, M.wallTile, M.plaster]);
+  bw.position.set(cx, (G.ceil + G.floors[0]) / 2, b.z0 + 0.004); g.add(bw);
   // muros laterales con ventana por piso
   [b.x0 + 0.004, b.x1 - 0.004].forEach(function (x, side) {
+    var inner = side ? 1 : 0; // índice de cara interior (+x para el muro izquierdo, -x para el derecho)
+    function wbox(w, h, d, px, py, pz) {
+      var mats = [M.plaster, M.plaster, M.plaster, M.plaster, M.plaster, M.plaster]; mats[inner] = M.wallTile2;
+      var m = mesh(new T.BoxGeometry(w, h, d), mats); m.position.set(px, py, pz); g.add(m); return m;
+    }
     G.floors.forEach(function (y0, i) {
       var y1 = (i < 2 ? G.floors[i + 1] : G.ceil) - 0.014, hh = y1 - y0;
       var wz0 = b.z0 + 0.15, wz1 = b.z0 + 0.27, wy0 = y0 + 0.13, wy1 = y0 + 0.235;
-      var mat = side ? M.wallTile : M.white;
-      // trozos alrededor de la ventana
-      box(0.008, hh, wz0 - b.z0 - 0.008, mat, x, y0 + hh / 2, (b.z0 + 0.008 + wz0) / 2, g);
-      box(0.008, hh, b.z1 - wz1, mat, x, y0 + hh / 2, (wz1 + b.z1) / 2, g);
-      box(0.008, wy0 - y0, wz1 - wz0, mat, x, (y0 + wy0) / 2, (wz0 + wz1) / 2, g);
-      box(0.008, y1 - wy1, wz1 - wz0, mat, x, (wy1 + y1) / 2, (wz0 + wz1) / 2, g);
-      // marco y vidrio
-      var fr = new T.Group();
-      box(0.012, 0.006, wz1 - wz0, M.frame, x, wy0 + 0.003, (wz0 + wz1) / 2, fr);
-      box(0.012, 0.006, wz1 - wz0, M.frame, x, wy1 - 0.003, (wz0 + wz1) / 2, fr);
-      box(0.012, wy1 - wy0, 0.006, M.frame, x, (wy0 + wy1) / 2, wz0 + 0.003, fr);
-      box(0.012, wy1 - wy0, 0.006, M.frame, x, (wy0 + wy1) / 2, wz1 - 0.003, fr);
-      box(0.01, wy1 - wy0, 0.004, M.frame, x, (wy0 + wy1) / 2, (wz0 + wz1) / 2, fr);
-      var gl = new T.Mesh(new T.PlaneGeometry(wz1 - wz0, wy1 - wy0), M.glass); gl.rotation.y = Math.PI / 2; gl.position.set(x, (wy0 + wy1) / 2, (wz0 + wz1) / 2); fr.add(gl);
+      wbox(0.008, hh, wz0 - b.z0 - 0.008, x, y0 + hh / 2, (b.z0 + 0.008 + wz0) / 2);
+      wbox(0.008, hh, b.z1 - wz1, x, y0 + hh / 2, (wz1 + b.z1) / 2);
+      wbox(0.008, wy0 - y0, wz1 - wz0, x, (y0 + wy0) / 2, (wz0 + wz1) / 2);
+      wbox(0.008, y1 - wy1, wz1 - wz0, x, (wy1 + y1) / 2, (wz0 + wz1) / 2);
+      // ventana de aluminio con alféizar
+      var fr = new T.Group(), cz2 = (wz0 + wz1) / 2, cy = (wy0 + wy1) / 2;
+      rbox(0.012, 0.005, wz1 - wz0, 0.001, M.alu, x, wy0 + 0.0025, cz2, fr);
+      rbox(0.012, 0.005, wz1 - wz0, 0.001, M.alu, x, wy1 - 0.0025, cz2, fr);
+      rbox(0.012, wy1 - wy0, 0.005, 0.001, M.alu, x, cy, wz0 + 0.0025, fr);
+      rbox(0.012, wy1 - wy0, 0.005, 0.001, M.alu, x, cy, wz1 - 0.0025, fr);
+      rbox(0.008, wy1 - wy0, 0.004, 0.001, M.alu, x, cy, cz2, fr);
+      rbox(0.02, 0.004, wz1 - wz0 + 0.012, 0.001, M.marble, x + (side ? 0.006 : -0.006), wy0 - 0.002, cz2, fr);
+      var gl = new T.Mesh(new T.PlaneGeometry(wz1 - wz0, wy1 - wy0), M.glass); gl.rotation.y = Math.PI / 2; gl.position.set(x, cy, cz2); fr.add(gl);
       g.add(fr);
     });
   });
-  // baños por piso
   G.floors.forEach(function (y, i) { bathroom(g, y, i); });
-  // techo a dos aguas con tejas
+  // techo a dos aguas con tejas de arcilla
   var rx0 = b.x0 - 0.03, rx1 = b.x1 + 0.03, rz0 = b.z0 - 0.02, rz1 = b.z1 + 0.02, ry = G.ceil + 0.004, rise = 0.042;
-  var half = (rx1 - rx0) / 2, len = Math.sqrt(half * half + rise * rise), ang = Math.atan2(rise, half);
+  var half = (rx1 - rx0) / 2, len = Math.sqrt(half * half + rise * rise), ang = Math.atan2(rise, half), depth = rz1 - rz0;
+  var tileGeo = new T.CylinderGeometry(0.0085, 0.0075, 0.034, 10, 1, true, 0, Math.PI); tileGeo.rotateZ(Math.PI / 2);
+  var cols = Math.floor(depth / 0.017), rows = Math.ceil(len / 0.028);
   [-1, 1].forEach(function (s) {
-    var p = mesh(new T.BoxGeometry(len, 0.008, rz1 - rz0), [M.white, M.white, M.roof, M.white, M.white, M.white]);
-    p.position.set(cx + s * half / 2, ry + rise / 2 + 0.004, (rz0 + rz1) / 2); p.rotation.z = -s * ang; g.add(p);
+    var deck = mesh(new T.BoxGeometry(len, 0.006, depth), M.roofBase); deck.position.set(cx + s * half / 2, ry + rise / 2 + 0.003, (rz0 + rz1) / 2); deck.rotation.z = -s * ang; g.add(deck);
+    var inst = [new T.InstancedMesh(tileGeo, M.roofTile, cols * rows), new T.InstancedMesh(tileGeo, M.roofTile2, cols * rows)], n = [0, 0];
+    var mm = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler();
+    for (var c = 0; c < cols; c++) for (var r = 0; r < rows; r++) {
+      var conv = c % 2, u = (r + 0.5) / rows; // posición a lo largo de la pendiente desde el alero
+      var px = cx + s * (half - u * half), py = ry + 0.006 + u * rise + (conv ? 0.006 : 0.0015), pz = rz0 + (c + 0.5) * depth / cols;
+      e.set(conv ? 0 : Math.PI, 0, s > 0 ? Math.PI - ang : ang); q.setFromEuler(e);
+      mm.compose(V(px, py, pz), q, V(1, 1, 1)); var k = (c + r) % 3 === 0 ? 1 : 0; inst[k].setMatrixAt(n[k]++, mm);
+    }
+    inst.forEach(function (im, k) { im.count = n[k]; im.castShadow = true; im.receiveShadow = true; g.add(im); });
   });
-  var ridge = cylAlong(0.007, rz1 - rz0 + 0.004, M.roof, V(cx, ry + rise + 0.008, (rz0 + rz1) / 2), V(0, 0, 1), 16, g);
+  var ridge = new T.Mesh(new T.CylinderGeometry(0.009, 0.009, depth + 0.006, 14, 1, false, 0, Math.PI), M.roofTile);
+  ridge.rotation.x = Math.PI / 2; ridge.rotation.y = Math.PI; ridge.position.set(cx, ry + rise + 0.008, (rz0 + rz1) / 2); ridge.castShadow = true; g.add(ridge);
   var tri = new T.Shape(); tri.moveTo(-W / 2, 0); tri.lineTo(W / 2, 0); tri.lineTo(0, rise - 0.004); tri.closePath();
-  [b.z0 + 0.004, b.z1 - 0.004].forEach(function (z) {
-    var gm = mesh(new T.ExtrudeGeometry(tri, { depth: 0.006, bevelEnabled: false }), M.white); gm.position.set(cx, ry, z - 0.003); g.add(gm);
-  });
+  [b.z0 + 0.004, b.z1 - 0.004].forEach(function (z) { var gm = mesh(new T.ExtrudeGeometry(tri, { depth: 0.006, bevelEnabled: false }), M.plaster); gm.position.set(cx, ry, z - 0.003); g.add(gm); });
+  // tablas de alero
+  [-1, 1].forEach(function (s) { var fb = rbox(0.004, 0.012, depth + 0.004, 0.001, M.fascia, cx + s * (half + 0.001), ry + 0.002, (rz0 + rz1) / 2, g); });
 }
 function bathroom(g, y, i) {
   var b = G.bld, zb = b.z0 + 0.008;
-  // inodoro
-  var it = new T.Group(), ix = 0.185, iz = zb + 0.045;
-  var base = mesh(new T.CylinderGeometry(0.014, 0.017, 0.026, 28), M.ceramic); base.position.set(ix, y + 0.013, iz + 0.005); it.add(base);
-  var bowl = mesh(new T.SphereGeometry(0.022, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), M.ceramic); bowl.scale.set(0.95, 0.5, 1.25); bowl.rotation.x = Math.PI; bowl.position.set(ix, y + 0.04, iz + 0.008); it.add(bowl);
-  var seat = mesh(new T.TorusGeometry(0.018, 0.004, 10, 28), M.ceramic); seat.rotation.x = Math.PI / 2; seat.scale.set(1, 1.25, 1); seat.position.set(ix, y + 0.041, iz + 0.008); it.add(seat);
-  box(0.044, 0.038, 0.016, M.ceramic, ix, y + 0.062, zb + 0.009, it);
-  box(0.046, 0.004, 0.018, M.ceramic, ix, y + 0.083, zb + 0.009, it);
-  var btn = cylAlong(0.003, 0.002, M.chrome, V(ix, y + 0.086, zb + 0.009), UP, 12, it);
-  g.add(it);
-  // lavatorio de pedestal con espejo
+  // inodoro de una pieza
+  var ix = 0.185, iz = zb + 0.048, it = new T.Group();
+  it.add(latheMesh([[0, 0], [0.013, 0], [0.0135, 0.004], [0.0125, 0.018], [0.016, 0.026], [0.019, 0.034], [0.0195, 0.038], [0, 0.038]], M.ceramic, 40));
+  var bowl = latheMesh([[0.0, 0.03], [0.012, 0.032], [0.019, 0.036], [0.0205, 0.0395], [0.019, 0.041], [0.014, 0.038], [0.008, 0.033], [0, 0.031]], M.ceramic, 40); it.add(bowl);
+  it.scale.set(1, 1, 1.25); it.position.set(ix, y, iz); g.add(it);
+  var seat = mesh(new T.TorusGeometry(0.016, 0.0035, 12, 40), M.ceramic); seat.rotation.x = Math.PI / 2; seat.scale.set(1, 1.3, 1); seat.position.set(ix, y + 0.0425, iz); g.add(seat);
+  var lidT = mesh(new T.CylinderGeometry(0.019, 0.019, 0.002, 40), M.ceramic); lidT.scale.set(1, 1, 1.25); lidT.rotation.x = -1.45; lidT.position.set(ix, y + 0.064, zb + 0.022); g.add(lidT);
+  rbox(0.046, 0.04, 0.017, 0.004, M.ceramic, ix, y + 0.062, zb + 0.0095, g);
+  rbox(0.048, 0.004, 0.019, 0.0015, M.ceramic, ix, y + 0.0835, zb + 0.0095, g);
+  var fb = mesh(new T.CylinderGeometry(0.0035, 0.0035, 0.0015, 20), M.chrome); fb.position.set(ix, y + 0.0858, zb + 0.0095); g.add(fb);
+  // lavatorio de pedestal con grifería
   var lx = 0.29, lz = zb + 0.03;
-  var ped = mesh(new T.CylinderGeometry(0.008, 0.012, 0.075, 20), M.ceramic); ped.position.set(lx, y + 0.0375, lz - 0.006); g.add(ped);
-  var basin = mesh(new T.SphereGeometry(0.03, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), M.ceramic); basin.rotation.x = Math.PI; basin.scale.set(1.1, 0.45, 0.8); basin.position.set(lx, y + 0.09, lz); g.add(basin);
-  box(0.066, 0.005, 0.05, M.ceramic, lx, y + 0.0905, lz, g);
-  var sink = mesh(new T.CylinderGeometry(0.02, 0.02, 0.0012, 28), M.dark); sink.scale.set(1.2, 1, 0.8); sink.position.set(lx, y + 0.0932, lz + 0.004); g.add(sink);
-  cylAlong(0.0022, 0.016, M.chrome, V(lx, y + 0.1, zb + 0.008), UP, 12, g);
-  cylAlong(0.0018, 0.014, M.chrome, V(lx, y + 0.108, zb + 0.014), V(0, 0, 1), 12, g);
-  box(0.06, 0.075, 0.003, M.frame, lx, y + 0.165, zb + 0.0015, g);
-  var mir = mesh(new T.PlaneGeometry(0.055, 0.07), M.mirror, false, false); mir.position.set(lx, y + 0.165, zb + 0.0032); g.add(mir);
-  box(0.05, 0.005, 0.006, M.lamp, lx, y + 0.207, zb + 0.004, g);
-  // ducha con mampara
+  var ped = latheMesh([[0.012, 0], [0.011, 0.01], [0.0085, 0.04], [0.009, 0.07], [0.012, 0.078]], M.ceramic, 32); ped.position.set(lx, y, lz - 0.006); g.add(ped);
+  var basin = latheMesh([[0, 0.068], [0.012, 0.069], [0.024, 0.074], [0.031, 0.083], [0.033, 0.09], [0.032, 0.093], [0.028, 0.093], [0.026, 0.088], [0.018, 0.082], [0.008, 0.079], [0, 0.0785]], M.ceramic, 48);
+  basin.scale.set(1.05, 1, 0.78); basin.position.set(lx, y, lz); g.add(basin);
+  var drain = mesh(new T.CylinderGeometry(0.003, 0.003, 0.0008, 16), M.chrome); drain.position.set(lx, y + 0.0792, lz); g.add(drain);
+  var fbase = latheMesh([[0.0045, 0], [0.004, 0.004], [0.0028, 0.02]], M.chrome, 20); fbase.position.set(lx, y + 0.093, zb + 0.009); g.add(fbase);
+  var sp = new T.CatmullRomCurve3([V(lx, y + 0.112, zb + 0.009), V(lx, y + 0.118, zb + 0.016), V(lx, y + 0.112, zb + 0.026)]);
+  g.add(mesh(new T.TubeGeometry(sp, 16, 0.0018, 10, false), M.chrome));
+  rbox(0.002, 0.003, 0.014, 0.0008, M.chrome, lx, y + 0.118, zb + 0.004, g);
+  // espejo con marco y luz
+  rbox(0.062, 0.078, 0.003, 0.0015, M.alu, lx, y + 0.165, zb + 0.0015, g);
+  var mir = mesh(new T.PlaneGeometry(0.058, 0.074), M.mirror, false, false); mir.position.set(lx, y + 0.165, zb + 0.0032); g.add(mir);
+  rbox(0.05, 0.004, 0.006, 0.0015, M.lamp, lx, y + 0.208, zb + 0.004, g);
+  // repisa
+  rbox(0.05, 0.003, 0.012, 0.001, M.marble, lx, y + 0.122, zb + 0.006, g);
+  // ducha: plato, mampara, barra y cabezal tipo lluvia
   var dx = 0.425, dz = zb + 0.042;
-  box(0.09, 0.006, 0.084, M.ceramic, dx, y + 0.003, dz, g);
-  var drain = cylAlong(0.004, 0.001, M.chrome, V(dx, y + 0.0065, dz), UP, 14, g);
-  cylAlong(0.0022, 0.2, M.chrome, V(dx + 0.03, y + 0.11, zb + 0.006), UP, 12, g);
-  cylAlong(0.0022, 0.025, M.chrome, V(dx + 0.03, y + 0.21, zb + 0.018), V(0, 0, 1), 12, g);
-  var head = mesh(new T.CylinderGeometry(0.011, 0.007, 0.006, 24), M.chrome); head.position.set(dx + 0.03, y + 0.205, zb + 0.03); g.add(head);
-  cylAlong(0.003, 0.01, M.chrome, V(dx + 0.03, y + 0.09, zb + 0.01), V(0, 0, 1), 12, g);
-  var scr = new T.Mesh(new T.PlaneGeometry(0.085, 0.19), M.glass); scr.rotation.y = Math.PI / 2; scr.position.set(dx - 0.046, y + 0.1, dz); g.add(scr);
-  box(0.003, 0.19, 0.003, M.chrome, dx - 0.046, y + 0.1, dz + 0.042, g);
-  // toallero
-  cylAlong(0.0016, 0.05, M.chrome, V(b.x1 - 0.012, y + 0.13, b.z0 + 0.11), V(0, 0, 1), 10, g);
-  box(0.002, 0.04, 0.035, std(0x5b7fa6, 0.9), b.x1 - 0.012, y + 0.11, b.z0 + 0.11, g);
-  // luminaria
+  rbox(0.09, 0.006, 0.084, 0.0015, M.ceramic, dx, y + 0.003, dz, g);
+  var dr = mesh(new T.CylinderGeometry(0.0045, 0.0045, 0.0008, 20), M.chrome); dr.position.set(dx, y + 0.0062, dz); g.add(dr);
+  var pipe = new T.CatmullRomCurve3([V(dx + 0.03, y + 0.06, zb + 0.004), V(dx + 0.03, y + 0.2, zb + 0.004), V(dx + 0.03, y + 0.214, zb + 0.012), V(dx + 0.03, y + 0.214, zb + 0.03)]);
+  g.add(mesh(new T.TubeGeometry(pipe, 24, 0.0016, 10, false), M.chrome));
+  var head = latheMesh([[0, -0.0015], [0.013, -0.0015], [0.014, 0], [0.012, 0.002], [0, 0.003]], M.chrome, 32); head.position.set(dx + 0.03, y + 0.21, zb + 0.032); g.add(head);
+  var mix = latheMesh([[0.007, 0], [0.007, 0.003], [0.004, 0.006], [0.003, 0.009]], M.chrome, 24); mix.rotation.x = Math.PI / 2; mix.position.set(dx + 0.03, y + 0.1, zb + 0.001); g.add(mix);
+  rbox(0.0025, 0.0025, 0.012, 0.0008, M.chrome, dx + 0.03, y + 0.1, zb + 0.014, g);
+  var scr = new T.Mesh(new T.PlaneGeometry(0.084, 0.19), M.glass); scr.rotation.y = Math.PI / 2; scr.position.set(dx - 0.046, y + 0.1, dz); g.add(scr);
+  rbox(0.003, 0.19, 0.003, 0.0008, M.chrome, dx - 0.046, y + 0.1, dz + 0.042, g);
+  rbox(0.003, 0.003, 0.084, 0.0008, M.chrome, dx - 0.046, y + 0.195, dz, g);
+  // toallero con toalla y tapete
+  var tr = new T.CatmullRomCurve3([V(b.x1 - 0.008, y + 0.135, b.z0 + 0.085), V(b.x1 - 0.016, y + 0.135, b.z0 + 0.088), V(b.x1 - 0.016, y + 0.135, b.z0 + 0.132), V(b.x1 - 0.008, y + 0.135, b.z0 + 0.135)]);
+  g.add(mesh(new T.TubeGeometry(tr, 20, 0.0012, 8, false), M.chrome));
+  rbox(0.004, 0.05, 0.038, 0.0015, M.towel, b.x1 - 0.016, y + 0.112, b.z0 + 0.11, g);
+  rbox(0.05, 0.0015, 0.032, 0.0012, M.mat, 0.37, y + 0.0015, zb + 0.11, g);
+  // luminaria empotrada
   var ceilY = (i < 2 ? G.floors[i + 1] : G.ceil) - 0.014;
-  var lampDisk = new T.Mesh(new T.CylinderGeometry(0.022, 0.022, 0.004, 28), M.lamp); lampDisk.position.set(0.3, ceilY - 0.002, -0.06); g.add(lampDisk);
+  var ring = mesh(new T.CylinderGeometry(0.02, 0.02, 0.003, 32), M.alu); ring.position.set(0.3, ceilY - 0.0015, -0.06); g.add(ring);
+  var lampDisk = new T.Mesh(new T.CylinderGeometry(0.016, 0.016, 0.0035, 28), M.lamp); lampDisk.position.set(0.3, ceilY - 0.0018, -0.06); g.add(lampDisk);
   var pl = new T.PointLight(0xffd9a0, 0.5, 0.55, 2); pl.position.set(0.3, ceilY - 0.03, -0.05); g.add(pl); floorLights.push(pl);
 }
 buildBuilding();
@@ -386,11 +602,27 @@ var swapMats = [];     // tuberías cuyo material cambia con el modo
 var waterMeshes = [];
 var nodesInfo = {};
 
+/* Tubería PVC con impresión, codos con casquillo, tees, válvula de bola, YF-S201 y transductor */
+function pipeGeo(r, len) {
+  var g = new T.CylinderGeometry(r, r, len, 32, 1, true), uv = g.attributes.uv;
+  for (var i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * len / 0.30);
+  return g;
+}
+function hubAt(r, L, mouth, dir) {
+  var h = mesh(hubGeo(r, L), M.fit); alignY(h, dir, mouth); hyd.add(h); swapMats.push(h); return h;
+}
+function capAt(r, end, dir) {
+  var L = Math.max(0.012, r * 1.4);
+  var g = cached('cap' + r.toFixed(5), function () {
+    return lathe([[r * 1.005, 0], [r * 1.12, 0.0006], [r * 1.2, 0.003], [r * 1.2, L - 0.004], [r * 1.17, L - 0.0012], [r * 1.08, L], [0, L + 0.0006]], 40);
+  });
+  var c = mesh(g, M.cap); alignY(c, dir, end.clone().addScaledVector(dir, -(L - 0.003))); hyd.add(c); swapMats.push(c);
+}
 function addRun(pts, sp, circ, opt) {
   opt = opt || {};
   var R = sp.De * 0.85, r = sp.De / 2, rw = sp.Di / 2 * 0.97, n = pts.length, dirs = [];
   for (var i = 0; i < n - 1; i++) dirs.push(pts[i + 1].clone().sub(pts[i]).normalize());
-  var line = [pts[0].clone()], hubL = sp.De * 0.62;
+  var line = [pts[0].clone()], hubL = sp.De * 0.75;
   for (i = 0; i < n - 1; i++) {
     var a = pts[i].clone(), b = pts[i + 1].clone(), d = dirs[i];
     if (i > 0) a.addScaledVector(d, R);
@@ -398,7 +630,7 @@ function addRun(pts, sp, circ, opt) {
     var len = a.distanceTo(b);
     if (len > 1e-4) {
       var mid = a.clone().add(b).multiplyScalar(0.5);
-      var p = cylAlong(r, len, M.pvc, mid, d, 28, hyd, true); swapMats.push(p);
+      var p = mesh(pipeGeo(r, len), M.pvc); alignY(p, d, mid); hyd.add(p); swapMats.push(p);
       var w = new T.Mesh(new T.CylinderGeometry(rw, rw, len, 16), WATER[circ]); w.quaternion.copy(p.quaternion); w.position.copy(mid); hyd.add(w); waterMeshes.push(w);
     }
     line.push(b.clone());
@@ -407,66 +639,106 @@ function addRun(pts, sp, circ, opt) {
       var C = P.clone().addScaledVector(d1, -R).addScaledVector(d2, R);
       var xa = d2.clone().negate(), ya = d1.clone(), za = new T.Vector3().crossVectors(xa, ya);
       var q = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(xa, ya, za));
-      var el = mesh(new T.TorusGeometry(R, r * 1.06, 16, 20, Math.PI / 2), M.fit); el.quaternion.copy(q); el.position.copy(C); hyd.add(el); swapMats.push(el);
+      var el = mesh(cached('elb' + R.toFixed(5) + r.toFixed(5), function () { return new T.TorusGeometry(R, r * 1.13, 20, 24, Math.PI / 2); }), M.fit);
+      el.quaternion.copy(q); el.position.copy(C); hyd.add(el); swapMats.push(el);
       var ew = new T.Mesh(new T.TorusGeometry(R, rw, 10, 16, Math.PI / 2), WATER[circ]); ew.quaternion.copy(q); ew.position.copy(C); hyd.add(ew); waterMeshes.push(ew);
-      swapMats.push(cylAlong(r * 1.17, hubL, M.fit, b.clone().addScaledVector(d1, -hubL / 2), d1, 28, hyd));
+      // casquillos: boca hacia el tubo, cuerpo hacia el codo
+      hubAt(r, hubL, b.clone().addScaledVector(d1, -hubL), d1);
       var a2 = P.clone().addScaledVector(d2, R);
-      swapMats.push(cylAlong(r * 1.17, hubL, M.fit, a2.clone().addScaledVector(d2, hubL / 2), d2, 28, hyd));
+      hubAt(r, hubL, a2.clone().addScaledVector(d2, hubL), d2.clone().negate());
       for (var k = 1; k <= 8; k++) {
         var th = k / 8 * Math.PI / 2;
         line.push(C.clone().addScaledVector(xa, R * Math.cos(th)).addScaledVector(ya, R * Math.sin(th)));
       }
     }
   }
-  if (opt.capEnd) swapMats.push(cylAlong(r * 1.18, 0.014, M.cap, pts[n - 1].clone().addScaledVector(dirs[n - 2], -0.004), dirs[n - 2], 28, hyd));
+  if (opt.capEnd) capAt(r, pts[n - 1], dirs[n - 2]);
   if (opt.flow !== false) addFlow(line, sp, circ, opt.q || 'Q0');
   return line;
 }
 function addTee(p, axis, branch, sp) {
-  var r = sp.De / 2 * 1.17, L = sp.De * 1.9;
-  swapMats.push(cylAlong(r, L, M.fit, p, axis, 28, hyd));
-  swapMats.push(cylAlong(r, sp.De * 0.95, M.fit, p.clone().addScaledVector(branch, sp.De * 0.475), branch, 28, hyd));
+  var r = sp.De / 2, L = sp.De * 2.1, hubL = sp.De * 0.75, ax = axis.clone().normalize(), br = branch.clone().normalize();
+  var body = mesh(cached('teeb' + r.toFixed(5), function () { return new T.CylinderGeometry(r * 1.13, r * 1.13, L, 32); }), M.fit);
+  alignY(body, ax, p); hyd.add(body); swapMats.push(body);
+  var bl = sp.De * 1.02, arm = mesh(cached('teea' + r.toFixed(5), function () { return new T.CylinderGeometry(r * 1.13, r * 1.13, bl, 32); }), M.fit);
+  alignY(arm, br, p.clone().addScaledVector(br, bl / 2)); hyd.add(arm); swapMats.push(arm);
+  hubAt(r, hubL, p.clone().addScaledVector(ax, L / 2), ax.clone().negate());
+  hubAt(r, hubL, p.clone().addScaledVector(ax, -L / 2), ax);
+  hubAt(r, hubL, p.clone().addScaledVector(br, bl), br.clone().negate());
+  // filete de unión entre brazo y cuerpo
+  var f = mesh(cached('teef' + r.toFixed(5), function () { return new T.TorusGeometry(r * 1.13, r * 0.09, 8, 32); }), M.fit);
+  alignY(f, br, p.clone().addScaledVector(br, r * 1.08)); f.rotateX(Math.PI / 2); hyd.add(f); swapMats.push(f);
 }
 function addTape(p, dir, sp, mat) {
-  cylAlong(sp.De / 2 + 0.0008, 0.008, mat, p, dir, 28, hyd);
+  var t = mesh(cached('tape' + sp.De.toFixed(5), function () { return new T.CylinderGeometry(sp.De / 2 + 0.0007, sp.De / 2 + 0.0007, 0.009, 32, 1, true); }), mat);
+  alignY(t, dir, p); hyd.add(t);
 }
+/* válvula de bola de bronce con palanca de acero y empuñadura de vinilo */
 function addValve(p, dir, sp, up, opening) {
   var s = sp.De / 0.021, g = new T.Group();
-  g.add(cylAlong(0.0118 * s, 0.05 * s, M.brass, V(0, 0, 0), UP, 28));
-  var ball = mesh(new T.SphereGeometry(0.0148 * s, 28, 18), M.brass); ball.scale.set(1, 1.2, 1); g.add(ball);
-  [-1, 1].forEach(function (k) { var h = mesh(new T.CylinderGeometry(0.0128 * s, 0.0128 * s, 0.011 * s, 6), M.brass); h.position.y = k * 0.0195 * s; g.add(h); });
-  g.add(cylAlong(0.0032 * s, 0.014 * s, M.steel, V(0, 0, 0.0185 * s), V(0, 0, 1), 14));
-  var hp = new T.Group(); hp.position.set(0, 0, 0.0255 * s);
-  var nut = mesh(new T.CylinderGeometry(0.005 * s, 0.005 * s, 0.004 * s, 6), M.steel); nut.rotation.x = Math.PI / 2; hp.add(nut);
-  box(0.012 * s, 0.04 * s, 0.0035 * s, M.red, 0, 0.016 * s, 0, hp);
-  var grip = mesh(new T.BoxGeometry(0.0135 * s, 0.026 * s, 0.006 * s), M.redGrip); grip.position.set(0, 0.04 * s, 0); hp.add(grip);
+  g.add(latheMesh([[0.0096 * s, -0.017 * s], [0.0118 * s, -0.0145 * s], [0.0136 * s, -0.009 * s], [0.0149 * s, -0.003 * s], [0.0149 * s, 0.003 * s], [0.0136 * s, 0.009 * s], [0.0118 * s, 0.0145 * s], [0.0096 * s, 0.017 * s]], M.brass, 40));
+  [-1, 1].forEach(function (k) {
+    var h = hexMesh(0.0245 * s, 0.0105 * s, M.brass); h.position.y = k * 0.0215 * s; g.add(h);
+    var c = mesh(new T.CylinderGeometry(0.0106 * s, 0.0106 * s, 0.005 * s, 32), M.brassDark); c.position.y = k * 0.0292 * s; g.add(c);
+  });
+  // cuello, prensaestopa y vástago
+  var neck = mesh(new T.CylinderGeometry(0.0062 * s, 0.0072 * s, 0.009 * s, 28), M.brass); neck.rotation.x = Math.PI / 2; neck.position.z = 0.0155 * s; g.add(neck);
+  var pn = hexMesh(0.0105 * s, 0.0045 * s, M.brassDark); pn.rotation.x = Math.PI / 2; pn.position.z = 0.0215 * s; g.add(pn);
+  var st = mesh(new T.CylinderGeometry(0.0024 * s, 0.0024 * s, 0.006 * s, 16), M.steel); st.rotation.x = Math.PI / 2; st.position.z = 0.025 * s; g.add(st);
+  var hp = new T.Group(); hp.position.set(0, 0, 0.0262 * s);
+  var nut = hexMesh(0.0068 * s, 0.0032 * s, M.steel); nut.rotation.x = Math.PI / 2; nut.position.z = 0.0028 * s; hp.add(nut);
+  rbox(0.0115 * s, 0.012 * s, 0.0022 * s, 0.0009 * s, M.steel, 0, 0.002 * s, 0, hp);
+  var bar = rbox(0.0072 * s, 0.05 * s, 0.0022 * s, 0.001 * s, M.steel, 0, 0.026 * s, 0, hp);
+  rbox(0.0102 * s, 0.033 * s, 0.0056 * s, 0.0025 * s, M.red, 0, 0.037 * s, 0, hp);
   hp.rotation.z = (1 - opening) * Math.PI / 2;
   g.add(hp);
   g.quaternion.copy(frame(dir, up)); g.position.copy(p);
   g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
   hyd.add(g); return g;
 }
+/* caudalímetro de efecto Hall YF-S201 (cuerpo de nailon negro) */
 function addMeter(p, dir, sp, up) {
   var s = Math.max(1, sp.De / 0.021), g = new T.Group();
-  g.add(cylAlong(0.0125 * s, 0.042 * s, M.black, V(0, 0, 0), UP, 28));
-  [-1, 1].forEach(function (k) { g.add(cylAlong(0.0108 * s, 0.011 * s, M.dark, V(0, k * 0.0265 * s, 0), UP, 20)); for (var t = 0; t < 3; t++) g.add(cylAlong(0.0113 * s, 0.0012 * s, M.dark, V(0, k * (0.023 + t * 0.003) * s, 0), UP, 20)); });
-  var hs = mesh(new T.CylinderGeometry(0.0172 * s, 0.0172 * s, 0.028 * s, 32), M.black); hs.rotation.x = Math.PI / 2; hs.position.z = 0.004 * s; g.add(hs);
-  var top = new T.Mesh(new T.CircleGeometry(0.0165 * s, 32), M.meterTop); top.position.z = 0.0182 * s; top.rotation.z = -Math.PI / 2; g.add(top);
-  box(0.008 * s, 0.01 * s, 0.008 * s, M.black, 0.019 * s, 0, 0.008 * s, g);
+  g.add(latheMesh([[0.0105 * s, -0.016 * s], [0.0122 * s, -0.0145 * s], [0.0122 * s, 0.0145 * s], [0.0105 * s, 0.016 * s]], M.nylon, 36));
+  [-1, 1].forEach(function (k) {
+    var y0 = k * 0.016 * s, y1 = k * 0.03 * s;
+    var th = mesh(new T.CylinderGeometry(0.0098 * s, 0.0098 * s, 0.014 * s, 28), M.nylon); th.position.y = (y0 + y1) / 2; g.add(th);
+    addThreads(g, 0.0099 * s, Math.min(y0, y1) + 0.001, Math.max(y0, y1) - 0.001, M.nylon);
+    var hx = hexMesh(0.026 * s, 0.006 * s, M.nylon); hx.position.y = k * 0.013 * s; g.add(hx);
+  });
+  // cámara de la turbina (eje = arriba local Z)
+  var ch = latheMesh([[0, -0.012 * s], [0.0168 * s, -0.012 * s], [0.0175 * s, -0.009 * s], [0.0175 * s, 0.012 * s], [0.0168 * s, 0.0145 * s], [0, 0.0145 * s]], M.nylon, 48);
+  ch.rotation.x = Math.PI / 2; ch.position.z = 0.004 * s; g.add(ch);
+  var top = new T.Mesh(new T.CircleGeometry(0.0155 * s, 40), M.meterTop); top.position.z = 0.0186 * s + 0.0001; top.rotation.z = -Math.PI / 2; g.add(top);
+  for (var i = 0; i < 4; i++) {
+    var a = Math.PI / 4 + i * Math.PI / 2, sc = mesh(cached('scr', function () { return new T.CylinderGeometry(0.0016, 0.0016, 0.0012, 12); }), M.steel);
+    sc.rotation.x = Math.PI / 2; sc.position.set(Math.cos(a) * 0.0145 * s, Math.sin(a) * 0.0145 * s, 0.0188 * s); g.add(sc);
+  }
+  // salida de cables con funda
+  var boot = mesh(new T.CylinderGeometry(0.0036 * s, 0.0046 * s, 0.01 * s, 18), M.rubber); boot.rotation.z = Math.PI / 2; boot.position.set(0.021 * s, 0, 0.008 * s); g.add(boot);
+  [0xd62828, 0x111111, 0xf2c200].forEach(function (c, k) {
+    var wv = mesh(new T.CylinderGeometry(0.0009, 0.0009, 0.006 * s, 8), std(c, 0.5)); wv.rotation.z = Math.PI / 2; wv.position.set(0.028 * s, (k - 1) * 0.0018, 0.008 * s); g.add(wv);
+  });
   g.quaternion.copy(frame(dir, up)); g.position.copy(p);
   g.traverse(function (o) { if (o.isMesh) { o.castShadow = true; } });
   hyd.add(g);
-  return g.localToWorld(V(0.022 * s, 0, 0.008 * s));
+  return g.localToWorld(V(0.031 * s, 0, 0.008 * s));
 }
+/* transductor de presión 0–1,2 MPa: rosca G1/4, cuerpo inoxidable y conector Packard */
 function addPSensor(p, sp, up) {
-  var g = new T.Group(), u = up.clone().normalize(), r0 = sp.De / 2;
-  g.add(cylAlong(0.0058, r0 + 0.01, M.fit, p.clone().addScaledVector(u, (r0 + 0.01) / 2), u, 16));
-  var hx = mesh(new T.CylinderGeometry(0.0088, 0.0088, 0.008, 6), M.brass); hx.quaternion.setFromUnitVectors(UP, u); hx.position.copy(p).addScaledVector(u, r0 + 0.014); g.add(hx);
-  g.add(cylAlong(0.0092, 0.03, M.steel, p.clone().addScaledVector(u, r0 + 0.033), u, 24));
-  g.add(cylAlong(0.0078, 0.012, M.black, p.clone().addScaledVector(u, r0 + 0.054), u, 20));
+  var g = new T.Group(), r0 = sp.De / 2;
+  var boss = mesh(new T.CylinderGeometry(0.0062, 0.0068, r0 + 0.006, 20), M.fit); boss.position.y = (r0 + 0.006) / 2; g.add(boss); swapMats.push(boss);
+  var hx = hexMesh(0.017, 0.0075, M.steel); hx.position.y = r0 + 0.011; g.add(hx);
+  addThreads(g, 0.0062, r0 + 0.005, r0 + 0.0075, M.steel);
+  g.add((function () { var b = latheMesh([[0.0065, 0], [0.0088, 0.0015], [0.0092, 0.004], [0.0092, 0.025], [0.0086, 0.028], [0.0072, 0.03]], M.steel, 36); b.position.y = r0 + 0.0148; return b; })());
+  var ring = mesh(new T.TorusGeometry(0.0091, 0.0006, 6, 36), M.dark); ring.rotation.x = Math.PI / 2; ring.position.y = r0 + 0.022; g.add(ring);
+  rbox(0.016, 0.014, 0.012, 0.002, M.black, 0, r0 + 0.052, 0, g);
+  rbox(0.006, 0.004, 0.0035, 0.001, M.black, 0, r0 + 0.056, 0.0072, g);
+  var cl = mesh(new T.CylinderGeometry(0.0034, 0.0042, 0.006, 16), M.rubber); cl.position.y = r0 + 0.0618; g.add(cl);
+  alignY(g, up, p);
   g.traverse(function (o) { if (o.isMesh) o.castShadow = true; });
   hyd.add(g);
-  return p.clone().addScaledVector(u, r0 + 0.06);
+  return p.clone().addScaledVector(up.clone().normalize(), r0 + 0.064);
 }
 function addCable(a, color, idx) {
   // arnés: sube un poco, se separa del tubo, baja vertical y corre por el tablero hasta el ESP32
@@ -529,7 +801,12 @@ function pumpCircuit(spFeed, xNode, yNode) {
   if (yNode > 0.12) pts.push(V(xNode, yNode, Z));
   addRun(pts, spFeed, 'al', { q: 'Q0' });
   // unión universal en la descarga
-  swapMats.push(cylAlong(spFeed.De / 2 * 1.35, 0.016, M.fit, V(p.x - 0.045, 0.12, -0.02), V(0, 0, 1), 6, hyd));
+  (function () {
+    var u = new T.Group(), r = spFeed.De / 2, Zd = V(0, 0, 1);
+    var nut = hexMesh(spFeed.De * 1.55, 0.011, M.fit); alignY(nut, Zd, V(p.x - 0.045, 0.12, -0.02)); u.add(nut);
+    [-1, 1].forEach(function (k) { var c = mesh(hubGeo(r, 0.012), M.fit); alignY(c, V(0, 0, -k), V(p.x - 0.045, 0.12, -0.02 + k * 0.0175)); u.add(c); });
+    hyd.add(u); u.traverse(function (o) { if (o.isMesh) swapMats.push(o); });
+  })();
 }
 function floorStub(x, y, sp, withSensor, circLabel) {
   var Z = G.ZP, z1 = 0.10;
